@@ -89,7 +89,10 @@ function activeQuestion(state) {
 }
 
 function currentVoteUrl() {
-  return new URL("vote.html", window.location.href).href;
+  const url = new URL("vote.html", window.location.href);
+  url.searchParams.set("v", "9");
+  url.searchParams.set("t", String(Date.now()));
+  return url.href;
 }
 
 function getVoterId() {
@@ -534,6 +537,7 @@ function renderSlideView() {
   const voteLinkEl = document.getElementById("slide-vote-link");
   const startButton = document.getElementById("start-voting");
   const stopButton = document.getElementById("stop-voting");
+  const clearVotesButton = document.getElementById("clear-votes");
   const firstButton = document.getElementById("first-question");
   const previousButton = document.getElementById("previous-question");
   const nextButton = document.getElementById("next-question");
@@ -667,6 +671,17 @@ function renderSlideView() {
     updateActiveQuestion((question) => {
       question.status = "closed";
       question.closesAt = null;
+    });
+  });
+
+  clearVotesButton.addEventListener("click", () => {
+    if (!window.confirm("Clear all votes for this question?")) {
+      return;
+    }
+
+    updateActiveQuestion((question) => {
+      question.votes = question.options.map(() => 0);
+      question.voterSelections = {};
     });
   });
 
