@@ -169,6 +169,15 @@ function recalculateVotes(question) {
   });
 }
 
+function selectedIndexesFor(question, voterId) {
+  const selected = question.voterSelections[voterId] || [];
+  return Array.isArray(selected) ? selected.map(Number) : [Number(selected)];
+}
+
+function totalVotesFor(question) {
+  return question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+}
+
 function renderMissionControl() {
   const sessionInput = document.getElementById("session-name");
   const questionFormTitle = document.getElementById("question-form-title");
@@ -199,7 +208,7 @@ function renderMissionControl() {
 
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => {
-      const voteTotal = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+      const voteTotal = totalVotesFor(question);
       const typeLabel = question.type === "multi" ? "multi-select" : "single-select";
 
       return `
@@ -285,7 +294,7 @@ function renderMissionControl() {
     addButton.disabled = true;
 
     window.setTimeout(() => {
-      addButton.textContent = editingQuestionIndex.value === "" ? "Add Question" : "Save Question";
+      addButton.textContent = "Add Question";
       addButton.disabled = false;
     }, 900);
   });
@@ -352,6 +361,8 @@ function renderMissionControl() {
 
 function renderVoteView() {
   const sessionEl = document.getElementById("vote-session");
+  const statusEl = document.getElementById("vote-status");
+  const countdownEl = document.getElementById("vote-countdown");
   const typeEl = document.getElementById("vote-type");
   const questionEl = document.getElementById("vote-question");
   const optionsEl = document.getElementById("vote-options");
@@ -362,10 +373,78 @@ function renderVoteView() {
   }
 
   let state = defaultState();
+  let countdownTimer = null;
+
+  function updateVoteCountdown(question) {
+    if (countdownTimer) {
+      window.clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+
+    if (!countdownEl) {
+      return;
+    }
+
+    if (!question || question.status !== "open" || !question.closesAt) {
+      countdownEl.textContent = "";
+      return;
+    }
+
+    function tick() {
+      const remaining = Math.max(0, Math.ceil((Number(question.closesAt) - Date.now()) / 1000));
+      countdownEl.textContent = `Closes in ${remaining}s`;
+
+      if (remaining <= 0) {
+        question.status = "closed";
+        question.closesAt = null;
+        saveState(state);
+        window.clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }
+
+    tick();
+    countdownTimer = window.setInterval(tick, 1000);
+  }
+
+  function renderVoteOptions(question, selectedIndexes) {
+    const total = totalVotesFor(question);
+    const isClosed = question.status !== "open";
+
+    optionsEl.innerHTML = question.options.map((option, index) => {
+      const isSelected = selectedIndexes.includes(index);
+      const count = Number(question.votes[index] || 0);
+      const percent = total ? Math.round((count / total) * 100) : 0;
+
+      if (isClosed) {
+        return `
+          <button class="vote-option is-closed ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button" disabled>
+            <span>${escapeHtml(option)}${isSelected ? " ✓" : ""}</span>
+            <span class="vote-result">
+              <span class="vote-result-line">
+                <small>${count} votes</small>
+                <small>${percent}%</small>
+              </span>
+              <span class="vote-result-track">
+                <span class="vote-result-fill" style="width: ${percent}%"></span>
+              </span>
+            </span>
+          </button>
+        `;
+      }
+
+      return `
+        <button class="vote-option ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button">
+          <span>${escapeHtml(option)}${isSelected ? " ✓" : ""}</span>
+        </button>
+      `;
+    }).join("");
+  }
 
   function draw(nextState) {
     state = nextState;
     closeExpiredQuestion(state);
+
     const question = activeQuestion(state);
     const voterId = getVoterId();
 
@@ -374,41 +453,41 @@ function renderVoteView() {
     if (!question) {
       questionEl.textContent = "No active question yet.";
       optionsEl.innerHTML = "";
+      if (statusEl) statusEl.textContent = "";
+      updateVoteCountdown(null);
       return;
     }
 
-    const selected = question.voterSelections[voterId] || [];
-    const selectedIndexes = Array.isArray(selected) ? selected.map(Number) : [Number(selected)];
+    const selectedIndexes = selectedIndexesFor(question, voterId).filter(Number.isInteger);
+    const isClosed = question.status !== "open";
 
     questionEl.textContent = question.text;
     typeEl.textContent = question.type === "multi"
       ? "Tap one or more options. Your choices can change until voting closes."
       : "Tap one option. Tapping another option changes your vote.";
 
-    if (question.status !== "open") {
-      optionsEl.innerHTML = "";
-      messageEl.textContent = "Voting is closed for this question.";
-      return;
+    if (statusEl) {
+      statusEl.textContent = isClosed ? "Closed" : "Open";
+      statusEl.classList.toggle("is-closed", isClosed);
     }
 
-    messageEl.textContent = selectedIndexes.length ? "Your current vote is saved." : "";
+    renderVoteOptions(question, selectedIndexes);
+    updateVoteCountdown(question);
 
-    optionsEl.innerHTML = question.options.map((option, index) => {
-      const isSelected = selectedIndexes.includes(index);
-
-      return `
-        <button class="vote-option ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button">
-          <span>${escapeHtml(option)}</span>
-        </button>
-      `;
-    }).join("");
+    if (isClosed) {
+      messageEl.textContent = selectedIndexes.length
+        ? "Voting is closed. Your selected option is highlighted."
+        : "Voting is closed. Results are shown below.";
+    } else {
+      messageEl.textContent = selectedIndexes.length ? "Your current vote is saved." : "";
+    }
   }
 
   onSessionChange(draw);
 
   optionsEl.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-vote-index]");
-    if (!button) return;
+    if (!button || button.disabled) return;
 
     const voteIndex = Number(button.dataset.voteIndex);
     const snapshot = await sessionRef.get();
@@ -470,7 +549,7 @@ function renderSlideView() {
 
   function renderQr() {
     const voteUrl = currentVoteUrl();
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(voteUrl)}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(voteUrl)}`;
 
     if (voteLinkEl) {
       voteLinkEl.href = voteUrl;
@@ -478,7 +557,7 @@ function renderSlideView() {
     }
 
     if (qrEl) {
-      qrEl.innerHTML = `<img src="${qrUrl}" width="220" height="220" alt="QR code for PollPulse vote page">`;
+      qrEl.innerHTML = `<img src="${qrUrl}" width="180" height="180" alt="QR code for PollPulse vote page">`;
     }
   }
 
@@ -530,7 +609,7 @@ function renderSlideView() {
       return;
     }
 
-    const total = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+    const total = totalVotesFor(question);
     const typeLabel = question.type === "multi" ? "MULTI-SELECT" : "SINGLE-SELECT";
 
     questionEl.textContent = question.text;
