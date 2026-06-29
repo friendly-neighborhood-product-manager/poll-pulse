@@ -31,6 +31,23 @@ function activeQuestion(state) {
   return state.questions[state.activeQuestionIndex] || null;
 }
 
+function setStatus(id, message) {
+  const status = document.getElementById(id);
+
+  if (!status) {
+    return;
+  }
+
+  status.textContent = message;
+  status.classList.add("is-visible");
+
+  window.clearTimeout(status._pollpulseTimer);
+  status._pollpulseTimer = window.setTimeout(() => {
+    status.textContent = "";
+    status.classList.remove("is-visible");
+  }, 2400);
+}
+
 function renderMissionControl() {
   const sessionInput = document.getElementById("session-name");
   const questionText = document.getElementById("question-text");
@@ -45,26 +62,6 @@ function renderMissionControl() {
 
   let state = loadState();
   sessionInput.value = state.sessionName || "";
-
-  function showFeedback(anchor, messageText) {
-    const existingMessage = document.getElementById("pollpulse-feedback");
-    if (existingMessage) {
-      existingMessage.remove();
-    }
-
-    const message = document.createElement("span");
-    message.id = "pollpulse-feedback";
-    message.textContent = messageText;
-    message.style.color = "#2563eb";
-    message.style.fontWeight = "800";
-    message.style.marginLeft = "12px";
-
-    anchor.insertAdjacentElement("afterend", message);
-
-    window.setTimeout(() => {
-      message.remove();
-    }, 2200);
-  }
 
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => {
@@ -94,12 +91,12 @@ function renderMissionControl() {
 
     saveButton.textContent = "Saved";
     saveButton.disabled = true;
-    showFeedback(saveButton, `Session saved as "${nextName}".`);
+    setStatus("session-save-status", `Saved as "${nextName}".`);
 
     window.setTimeout(() => {
       saveButton.textContent = "Save Session";
       saveButton.disabled = false;
-    }, 1800);
+    }, 1200);
   });
 
   addButton.addEventListener("click", () => {
@@ -110,7 +107,7 @@ function renderMissionControl() {
       .filter(Boolean);
 
     if (!text || options.length < 2) {
-      alert("Add a question and at least two options.");
+      setStatus("question-save-status", "Add a question and at least two options.");
       return;
     }
 
@@ -129,12 +126,12 @@ function renderMissionControl() {
 
     addButton.textContent = "Added";
     addButton.disabled = true;
-    showFeedback(addButton, "Question added and made active.");
+    setStatus("question-save-status", "Question added and made active.");
 
     window.setTimeout(() => {
       addButton.textContent = "Add Question";
       addButton.disabled = false;
-    }, 1800);
+    }, 1200);
   });
 
   questionList.addEventListener("click", (event) => {
@@ -146,12 +143,12 @@ function renderMissionControl() {
 
     if (action === "activate") {
       state.activeQuestionIndex = index;
-      showFeedback(button, "Active question updated.");
+      setStatus("question-save-status", "Active question updated.");
     }
 
     if (action === "toggle") {
       state.questions[index].status = state.questions[index].status === "open" ? "closed" : "open";
-      showFeedback(button, `Voting is now ${state.questions[index].status}.`);
+      setStatus("question-save-status", `Voting is now ${state.questions[index].status}.`);
     }
 
     saveState(state);
