@@ -1,5 +1,6 @@
 const POLLPULSE_SESSION_ID = "demo";
 const POLLPULSE_PATH = `pollpulse/sessions/${POLLPULSE_SESSION_ID}`;
+const VOTER_ID_KEY = "pollpulse-voter-id";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDj5h4-1t5CzZ1JalkMhuUFWdWrIK3DUlo",
@@ -24,9 +25,12 @@ function defaultState() {
     questions: [
       {
         text: "What should we prioritize next?",
+        type: "single",
         options: ["Speed", "Reliability", "Design polish"],
         votes: [0, 0, 0],
-        status: "open"
+        voterSelections: {},
+        status: "open",
+        closesAt: null
       }
     ]
   };
@@ -62,9 +66,14 @@ function normalizeQuestion(question) {
 
   return {
     text: String(question.text || "Untitled question"),
+    type: question.type === "multi" ? "multi" : "single",
     options: options.length ? options : ["Option A", "Option B"],
     votes: options.map((_, index) => Number(votes[index] || 0)),
-    status: question.status === "closed" ? "closed" : "open"
+    voterSelections: question.voterSelections && typeof question.voterSelections === "object"
+      ? question.voterSelections
+      : {},
+    status: question.status === "closed" ? "closed" : "open",
+    closesAt: question.closesAt || null
   };
 }
 
@@ -79,6 +88,21 @@ function saveState(state) {
 
 function activeQuestion(state) {
   return state.questions[state.activeQuestionIndex] || null;
+}
+
+function currentVoteUrl() {
+  return new URL("vote.html", window.location.href).href;
+}
+
+function getVoterId() {
+  let voterId = sessionStorage.getItem(VOTER_ID_KEY);
+
+  if (!voterId) {
+    voterId = `voter_${crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2)}`;
+    sessionStorage.setItem(VOTER_ID_KEY, voterId);
+  }
+
+  return voterId;
 }
 
 function setStatus(id, message) {
@@ -115,8 +139,26 @@ function onSessionChange(callback) {
   });
 }
 
+function closeExpiredQuestion(state) {
+  const question = activeQuestion(state);
+
+  if (!question || question.status !== "open" || !question.closesAt) {
+    return false;
+  }
+
+  if (Date.now() < Number(question.closesAt)) {
+    return false;
+  }
+
+  question.status = "closed";
+  question.closesAt = null;
+  saveState(state);
+  return true;
+}
+
 function renderMissionControl() {
   const sessionInput = document.getElementById("session-name");
+  const questionType = document.getElementById("question-type");
   const questionText = document.getElementById("question-text");
   const questionOptions = document.getElementById("question-options");
   const questionList = document.getElementById("question-list");
@@ -132,11 +174,12 @@ function renderMissionControl() {
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => {
       const voteTotal = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+      const typeLabel = question.type === "multi" ? "multi-select" : "single-select";
 
       return `
         <div class="card" style="margin-top: 12px; border-color: ${index === state.activeQuestionIndex ? "#2563eb" : "var(--border)"};">
           <strong>${index + 1}. ${escapeHtml(question.text)}</strong>
-          <span>${question.options.map(escapeHtml).join(", ")} · ${voteTotal} votes · ${question.status}</span>
+          <span>${typeLabel} · ${question.options.map(escapeHtml).join(", ")} · ${voteTotal} votes · ${question.status}</span>
           <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
             <button class="button secondary" data-action="activate" data-index="${index}" type="button">Make Active</button>
             <button class="button secondary" data-action="toggle" data-index="${index}" type="button">
@@ -188,9 +231,12 @@ function renderMissionControl() {
 
     state.questions.push({
       text,
+      type: questionType && questionType.value === "multi" ? "multi" : "single",
       options,
       votes: options.map(() => 0),
-      status: "open"
+      voterSelections: {},
+      status: "open",
+      closesAt: null
     });
 
     state.activeQuestionIndex = state.questions.length - 1;
@@ -223,6 +269,7 @@ function renderMissionControl() {
 
     if (action === "toggle") {
       state.questions[index].status = state.questions[index].status === "open" ? "closed" : "open";
+      state.questions[index].closesAt = null;
       setStatus("question-save-status", `Voting is now ${state.questions[index].status}.`);
     }
 
@@ -232,11 +279,14 @@ function renderMissionControl() {
 
 function renderVoteView() {
   const sessionEl = document.getElementById("vote-session");
+  const typeEl = document.getElementById("vote-type");
   const questionEl = document.getElementById("vote-question");
+  const formEl = document.getElementById("vote-form");
   const optionsEl = document.getElementById("vote-options");
+  const submitEl = document.getElementById("vote-submit");
   const messageEl = document.getElementById("vote-message");
 
-  if (!sessionEl || !questionEl || !optionsEl) {
+  if (!sessionEl || !questionEl || !optionsEl || !formEl) {
     return;
   }
 
@@ -244,50 +294,90 @@ function renderVoteView() {
 
   function draw(nextState) {
     state = nextState;
+    closeExpiredQuestion(state);
     const question = activeQuestion(state);
+    const voterId = getVoterId();
 
     sessionEl.textContent = state.sessionName || "PollPulse Session";
 
     if (!question) {
       questionEl.textContent = "No active question yet.";
       optionsEl.innerHTML = "";
+      submitEl.hidden = true;
       return;
     }
 
+    const hasVoted = Boolean(question.voterSelections[voterId]);
+
     questionEl.textContent = question.text;
+    typeEl.textContent = question.type === "multi" ? "Choose one or more options." : "Choose one option.";
 
     if (question.status !== "open") {
       optionsEl.innerHTML = "";
+      submitEl.hidden = true;
       messageEl.textContent = "Voting is closed for this question.";
       return;
     }
 
+    if (hasVoted) {
+      optionsEl.innerHTML = "";
+      submitEl.hidden = true;
+      messageEl.textContent = "Your vote has already been submitted in this browser window.";
+      return;
+    }
+
+    submitEl.hidden = false;
     messageEl.textContent = "";
 
+    const inputType = question.type === "multi" ? "checkbox" : "radio";
+
     optionsEl.innerHTML = question.options.map((option, index) => `
-      <button class="button secondary" data-vote-index="${index}" type="button">
-        ${escapeHtml(option)}
-      </button>
+      <label class="vote-option">
+        <input name="pollpulse-vote" value="${index}" type="${inputType}">
+        <span>${escapeHtml(option)}</span>
+      </label>
     `).join("");
   }
 
   onSessionChange(draw);
 
-  optionsEl.addEventListener("click", async (event) => {
-    const button = event.target.closest("button[data-vote-index]");
-    if (!button) return;
+  formEl.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-    const voteIndex = Number(button.dataset.voteIndex);
     const snapshot = await sessionRef.get();
     state = normalizeState(snapshot.val());
+    closeExpiredQuestion(state);
     const question = activeQuestion(state);
+    const voterId = getVoterId();
 
     if (!question || question.status !== "open") {
       messageEl.textContent = "Voting is closed.";
       return;
     }
 
-    question.votes[voteIndex] = Number(question.votes[voteIndex] || 0) + 1;
+    if (question.voterSelections[voterId]) {
+      messageEl.textContent = "Your vote has already been submitted in this browser window.";
+      return;
+    }
+
+    const selected = Array.from(formEl.querySelectorAll("input[name='pollpulse-vote']:checked"))
+      .map((input) => Number(input.value));
+
+    if (!selected.length) {
+      messageEl.textContent = "Choose an option before submitting.";
+      return;
+    }
+
+    if (question.type === "single" && selected.length > 1) {
+      messageEl.textContent = "Choose only one option.";
+      return;
+    }
+
+    selected.forEach((index) => {
+      question.votes[index] = Number(question.votes[index] || 0) + 1;
+    });
+
+    question.voterSelections[voterId] = selected;
     await saveState(state);
     messageEl.textContent = "Vote submitted. Thank you.";
   });
@@ -298,12 +388,78 @@ function renderSlideView() {
   const questionEl = document.getElementById("slide-question");
   const statusEl = document.getElementById("slide-status");
   const resultsEl = document.getElementById("slide-results");
+  const countdownEl = document.getElementById("slide-countdown");
+  const qrEl = document.getElementById("slide-qr");
+  const voteLinkEl = document.getElementById("slide-vote-link");
+  const startButton = document.getElementById("start-voting");
+  const stopButton = document.getElementById("stop-voting");
+  const firstButton = document.getElementById("first-question");
+  const previousButton = document.getElementById("previous-question");
+  const nextButton = document.getElementById("next-question");
+  const lastButton = document.getElementById("last-question");
+  const timerButtons = Array.from(document.querySelectorAll("[data-timer]"));
 
   if (!sessionEl || !questionEl || !resultsEl) {
     return;
   }
 
-  function draw(state) {
+  let state = defaultState();
+  let countdownTimer = null;
+
+  function renderQr() {
+    const voteUrl = currentVoteUrl();
+
+    if (voteLinkEl) {
+      voteLinkEl.href = voteUrl;
+      voteLinkEl.textContent = voteUrl;
+    }
+
+    if (qrEl && window.QRCode) {
+      qrEl.innerHTML = "";
+      window.QRCode.toCanvas(voteUrl, { width: 180, margin: 1 }, (error, canvas) => {
+        if (!error) {
+          qrEl.appendChild(canvas);
+        }
+      });
+    }
+  }
+
+  function updateCountdown(question) {
+    if (countdownTimer) {
+      window.clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+
+    if (!countdownEl) {
+      return;
+    }
+
+    if (!question || question.status !== "open" || !question.closesAt) {
+      countdownEl.textContent = "";
+      return;
+    }
+
+    function tick() {
+      const remaining = Math.max(0, Math.ceil((Number(question.closesAt) - Date.now()) / 1000));
+      countdownEl.textContent = `Voting closes in ${remaining}s`;
+
+      if (remaining <= 0) {
+        question.status = "closed";
+        question.closesAt = null;
+        saveState(state);
+        window.clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }
+
+    tick();
+    countdownTimer = window.setInterval(tick, 1000);
+  }
+
+  function draw(nextState) {
+    state = nextState;
+    closeExpiredQuestion(state);
+
     const question = activeQuestion(state);
 
     sessionEl.textContent = state.sessionName || "PollPulse Session";
@@ -312,13 +468,15 @@ function renderSlideView() {
       questionEl.textContent = "No active question yet.";
       statusEl.textContent = "";
       resultsEl.innerHTML = "";
+      updateCountdown(null);
       return;
     }
 
     const total = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+    const typeLabel = question.type === "multi" ? "MULTI-SELECT" : "SINGLE-SELECT";
 
     questionEl.textContent = question.text;
-    statusEl.textContent = `${question.status.toUpperCase()} · ${total} votes`;
+    statusEl.textContent = `${typeLabel} · ${question.status.toUpperCase()} · ${total} votes`;
 
     resultsEl.innerHTML = question.options.map((option, index) => {
       const count = Number(question.votes[index] || 0);
@@ -334,8 +492,64 @@ function renderSlideView() {
         </div>
       `;
     }).join("");
+
+    firstButton.disabled = state.activeQuestionIndex <= 0;
+    previousButton.disabled = state.activeQuestionIndex <= 0;
+    nextButton.disabled = state.activeQuestionIndex >= state.questions.length - 1;
+    lastButton.disabled = state.activeQuestionIndex >= state.questions.length - 1;
+
+    updateCountdown(question);
   }
 
+  async function setActiveQuestion(index) {
+    state.activeQuestionIndex = Math.max(0, Math.min(state.questions.length - 1, index));
+    await saveState(state);
+  }
+
+  async function updateActiveQuestion(mutator) {
+    const snapshot = await sessionRef.get();
+    state = normalizeState(snapshot.val());
+    const question = activeQuestion(state);
+
+    if (!question) {
+      return;
+    }
+
+    mutator(question);
+    await saveState(state);
+  }
+
+  startButton.addEventListener("click", () => {
+    updateActiveQuestion((question) => {
+      question.status = "open";
+      question.closesAt = null;
+    });
+  });
+
+  stopButton.addEventListener("click", () => {
+    updateActiveQuestion((question) => {
+      question.status = "closed";
+      question.closesAt = null;
+    });
+  });
+
+  timerButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const seconds = Number(button.dataset.timer || 30);
+
+      updateActiveQuestion((question) => {
+        question.status = "open";
+        question.closesAt = Date.now() + seconds * 1000;
+      });
+    });
+  });
+
+  firstButton.addEventListener("click", () => setActiveQuestion(0));
+  previousButton.addEventListener("click", () => setActiveQuestion(state.activeQuestionIndex - 1));
+  nextButton.addEventListener("click", () => setActiveQuestion(state.activeQuestionIndex + 1));
+  lastButton.addEventListener("click", () => setActiveQuestion(state.questions.length - 1));
+
+  renderQr();
   onSessionChange(draw);
 }
 
