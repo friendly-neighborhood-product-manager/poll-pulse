@@ -4,17 +4,48 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse</title>
+  <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
-  <header>
-    <h1>PollPulse</h1>
-    <p>Live polling for presentations.</p>
-  </header>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">Poll<span>Pulse</span></div>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="mission-control.html">Mission Control</a>
+        <a class="secondary" href="vote.html">Vote</a>
+        <a class="secondary" href="slide.html">Slide</a>
+      </nav>
+    </header>
 
-  <main>
-    <a href="mission-control.html">Open Mission Control</a>
-    <a href="vote.html">Vote View</a>
-    <a href="slide.html">Slide View</a>
-  </main>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <h1>Live polls that keep presentations moving.</h1>
+          <p>
+            Create a session, add questions, invite voters, and show results from a clean presentation view.
+          </p>
+          <a class="button" href="mission-control.html">Create A Poll Session</a>
+        </div>
+
+        <aside class="panel">
+          <h2>Demo Flow</h2>
+          <div class="card-grid" style="grid-template-columns: 1fr;">
+            <div class="card">
+              <strong>1. Build</strong>
+              <span>Create a session and add multiple-choice questions.</span>
+            </div>
+            <div class="card">
+              <strong>2. Vote</strong>
+              <span>Participants use the Vote view from any browser.</span>
+            </div>
+            <div class="card">
+              <strong>3. Present</strong>
+              <span>Show live results in the Slide view.</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
 </body>
 </html>
