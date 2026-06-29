@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Mission Control</title>
-  <link rel="stylesheet" href="assets/styles.css?v=5">
+  <link rel="stylesheet" href="assets/styles.css?v=6">
 </head>
 <body>
   <div class="app-shell">
@@ -41,6 +41,14 @@
         </label>
 
         <label>
+          Answer type
+          <select id="question-type">
+            <option value="single">Single-select</option>
+            <option value="multi">Multi-select</option>
+          </select>
+        </label>
+
+        <label>
           Options
           <textarea id="question-options" rows="5" placeholder="Option A&#10;Option B&#10;Option C"></textarea>
         </label>
@@ -60,6 +68,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=5"></script>
+  <script src="assets/app.js?v=6"></script>
 </body>
 </html>
