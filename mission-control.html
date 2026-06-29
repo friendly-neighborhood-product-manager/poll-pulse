@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PollPulse Mission Control</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="index.html">Poll<span>Pulse</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="vote.html">Vote</a>
+        <a class="secondary" href="slide.html">Slide</a>
+      </nav>
+    </header>
+
+    <main class="page">
+      <section class="panel">
+        <h1>Mission Control</h1>
+        <p>Create a demo polling session and add questions.</p>
+
+        <label>
+          Session name
+          <input id="session-name" type="text" value="Product Team Check-in">
+        </label>
+
+        <button class="button" id="save-session" type="button">Save Session</button>
+      </section>
+
+      <section class="panel" style="margin-top: 18px;">
+        <h2>Add Question</h2>
+
+        <label>
+          Question
+          <input id="question-text" type="text" placeholder="What should we prioritize next?">
+        </label>
+
+        <label>
+          Options
+          <textarea id="question-options" rows="5" placeholder="Option A&#10;Option B&#10;Option C"></textarea>
+        </label>
+
+        <button class="button" id="add-question" type="button">Add Question</button>
+      </section>
+
+      <section class="panel" style="margin-top: 18px;">
+        <h2>Questions</h2>
+        <div id="question-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
