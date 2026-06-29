@@ -27,6 +27,10 @@ function saveState(state) {
   localStorage.setItem(POLLPULSE_KEY, JSON.stringify(state));
 }
 
+function activeQuestion(state) {
+  return state.questions[state.activeQuestionIndex] || null;
+}
+
 function renderMissionControl() {
   const sessionInput = document.getElementById("session-name");
   const questionText = document.getElementById("question-text");
@@ -44,7 +48,7 @@ function renderMissionControl() {
 
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => `
-      <div class="card" style="margin-top: 12px;">
+      <div class="card" style="margin-top: 12px; border-color: ${index === state.activeQuestionIndex ? "#2563eb" : "var(--border)"};">
         <strong>${index + 1}. ${escapeHtml(question.text)}</strong>
         <span>${question.options.map(escapeHtml).join(", ")}</span>
         <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
@@ -111,6 +115,60 @@ function renderMissionControl() {
   drawQuestions();
 }
 
+function renderVoteView() {
+  const sessionEl = document.getElementById("vote-session");
+  const questionEl = document.getElementById("vote-question");
+  const optionsEl = document.getElementById("vote-options");
+  const messageEl = document.getElementById("vote-message");
+
+  if (!sessionEl || !questionEl || !optionsEl) {
+    return;
+  }
+
+  let state = loadState();
+  let question = activeQuestion(state);
+
+  sessionEl.textContent = state.sessionName || "PollPulse Session";
+
+  if (!question) {
+    questionEl.textContent = "No active question yet.";
+    optionsEl.innerHTML = "";
+    return;
+  }
+
+  questionEl.textContent = question.text;
+
+  if (question.status !== "open") {
+    optionsEl.innerHTML = "";
+    messageEl.textContent = "Voting is closed for this question.";
+    return;
+  }
+
+  optionsEl.innerHTML = question.options.map((option, index) => `
+    <button class="button secondary" data-vote-index="${index}" type="button">
+      ${escapeHtml(option)}
+    </button>
+  `).join("");
+
+  optionsEl.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-vote-index]");
+    if (!button) return;
+
+    const voteIndex = Number(button.dataset.voteIndex);
+    state = loadState();
+    question = activeQuestion(state);
+
+    if (!question || question.status !== "open") {
+      messageEl.textContent = "Voting is closed.";
+      return;
+    }
+
+    question.votes[voteIndex] = Number(question.votes[voteIndex] || 0) + 1;
+    saveState(state);
+    messageEl.textContent = "Vote submitted. Thank you.";
+  });
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -121,3 +179,4 @@ function escapeHtml(value) {
 }
 
 renderMissionControl();
+renderVoteView();
