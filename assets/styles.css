@@ -109,7 +109,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 24px;
+  padding: 30px;
 }
 
 .panel h1,
@@ -120,6 +120,7 @@ body {
 .panel p {
   color: var(--muted);
   line-height: 1.45;
+  margin-bottom: 22px;
 }
 
 label {
@@ -127,9 +128,9 @@ label {
   display: grid;
   font-size: 14px;
   font-weight: 800;
-  gap: 8px;
+  gap: 10px;
   line-height: 1.2;
-  margin-top: 18px;
+  margin-top: 22px;
 }
 
 input,
@@ -142,12 +143,12 @@ textarea {
   font-size: 16px;
   line-height: 1.4;
   outline: none;
-  padding: 12px 14px;
+  padding: 14px 15px;
   width: 100%;
 }
 
 textarea {
-  min-height: 132px;
+  min-height: 136px;
   resize: vertical;
 }
 
@@ -166,8 +167,8 @@ textarea:focus {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 14px;
+  margin-top: 28px;
 }
 
 .save-status {
@@ -227,5 +228,9 @@ textarea:focus {
   .hero,
   .card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 24px;
   }
 }
