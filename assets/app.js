@@ -1,9 +1,26 @@
-const POLLPULSE_KEY = "pollpulse-demo-state";
+const POLLPULSE_SESSION_ID = "demo";
+const POLLPULSE_PATH = `pollpulse/sessions/${POLLPULSE_SESSION_ID}`;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDj5h4-1t5CzZ1JalkMhuUFWdWrIK3DUlo",
+  authDomain: "poll-pulse-7eb98.firebaseapp.com",
+  databaseURL: "https://poll-pulse-7eb98-default-rtdb.firebaseio.com/",
+  projectId: "poll-pulse-7eb98",
+  storageBucket: "poll-pulse-7eb98.firebasestorage.app",
+  messagingSenderId: "1074866212603",
+  appId: "1:1074866212603:web:8f113e61f5b508865eea5e"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const database = firebase.database();
+const sessionRef = database.ref(POLLPULSE_PATH);
 
 function defaultState() {
   return {
     sessionName: "Product Team Check-in",
     activeQuestionIndex: 0,
+    updatedAt: Date.now(),
     questions: [
       {
         text: "What should we prioritize next?",
@@ -15,16 +32,49 @@ function defaultState() {
   };
 }
 
-function loadState() {
-  try {
-    return JSON.parse(localStorage.getItem(POLLPULSE_KEY)) || defaultState();
-  } catch (error) {
-    return defaultState();
-  }
+function normalizeState(value) {
+  const fallback = defaultState();
+  const state = value && typeof value === "object" ? value : fallback;
+  const questions = Array.isArray(state.questions)
+    ? state.questions
+    : Object.values(state.questions || {});
+
+  return {
+    sessionName: typeof state.sessionName === "string" && state.sessionName.trim()
+      ? state.sessionName
+      : fallback.sessionName,
+    activeQuestionIndex: Number.isInteger(state.activeQuestionIndex)
+      ? state.activeQuestionIndex
+      : 0,
+    updatedAt: Number(state.updatedAt || Date.now()),
+    questions: questions.length ? questions.map(normalizeQuestion) : fallback.questions
+  };
+}
+
+function normalizeQuestion(question) {
+  const options = Array.isArray(question.options)
+    ? question.options.map(String)
+    : Object.values(question.options || {}).map(String);
+
+  const votes = Array.isArray(question.votes)
+    ? question.votes.map((vote) => Number(vote || 0))
+    : Object.values(question.votes || {}).map((vote) => Number(vote || 0));
+
+  return {
+    text: String(question.text || "Untitled question"),
+    options: options.length ? options : ["Option A", "Option B"],
+    votes: options.map((_, index) => Number(votes[index] || 0)),
+    status: question.status === "closed" ? "closed" : "open"
+  };
 }
 
 function saveState(state) {
-  localStorage.setItem(POLLPULSE_KEY, JSON.stringify(state));
+  const nextState = {
+    ...state,
+    updatedAt: Date.now()
+  };
+
+  return sessionRef.set(nextState);
 }
 
 function activeQuestion(state) {
@@ -48,6 +98,23 @@ function setStatus(id, message) {
   }, 2400);
 }
 
+async function ensureSession() {
+  const snapshot = await sessionRef.get();
+
+  if (!snapshot.exists()) {
+    await saveState(defaultState());
+    return defaultState();
+  }
+
+  return normalizeState(snapshot.val());
+}
+
+function onSessionChange(callback) {
+  sessionRef.on("value", (snapshot) => {
+    callback(normalizeState(snapshot.val()));
+  });
+}
+
 function renderMissionControl() {
   const sessionInput = document.getElementById("session-name");
   const questionText = document.getElementById("question-text");
@@ -60,8 +127,7 @@ function renderMissionControl() {
     return;
   }
 
-  let state = loadState();
-  sessionInput.value = state.sessionName || "";
+  let state = defaultState();
 
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => {
@@ -82,12 +148,21 @@ function renderMissionControl() {
     }).join("");
   }
 
-  saveButton.addEventListener("click", () => {
+  onSessionChange((nextState) => {
+    state = nextState;
+
+    if (document.activeElement !== sessionInput) {
+      sessionInput.value = state.sessionName || "";
+    }
+
+    drawQuestions();
+  });
+
+  saveButton.addEventListener("click", async () => {
     const nextName = sessionInput.value.trim() || "Untitled Session";
 
     state.sessionName = nextName;
-    saveState(state);
-    drawQuestions();
+    await saveState(state);
 
     saveButton.textContent = "Saved";
     saveButton.disabled = true;
@@ -99,7 +174,7 @@ function renderMissionControl() {
     }, 1200);
   });
 
-  addButton.addEventListener("click", () => {
+  addButton.addEventListener("click", async () => {
     const text = questionText.value.trim();
     const options = questionOptions.value
       .split(/\r?\n/)
@@ -121,8 +196,8 @@ function renderMissionControl() {
     state.activeQuestionIndex = state.questions.length - 1;
     questionText.value = "";
     questionOptions.value = "";
-    saveState(state);
-    drawQuestions();
+
+    await saveState(state);
 
     addButton.textContent = "Added";
     addButton.disabled = true;
@@ -134,7 +209,7 @@ function renderMissionControl() {
     }, 1200);
   });
 
-  questionList.addEventListener("click", (event) => {
+  questionList.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
 
@@ -151,11 +226,8 @@ function renderMissionControl() {
       setStatus("question-save-status", `Voting is now ${state.questions[index].status}.`);
     }
 
-    saveState(state);
-    drawQuestions();
+    await saveState(state);
   });
-
-  drawQuestions();
 }
 
 function renderVoteView() {
@@ -168,38 +240,47 @@ function renderVoteView() {
     return;
   }
 
-  let state = loadState();
-  let question = activeQuestion(state);
+  let state = defaultState();
 
-  sessionEl.textContent = state.sessionName || "PollPulse Session";
+  function draw(nextState) {
+    state = nextState;
+    const question = activeQuestion(state);
 
-  if (!question) {
-    questionEl.textContent = "No active question yet.";
-    optionsEl.innerHTML = "";
-    return;
+    sessionEl.textContent = state.sessionName || "PollPulse Session";
+
+    if (!question) {
+      questionEl.textContent = "No active question yet.";
+      optionsEl.innerHTML = "";
+      return;
+    }
+
+    questionEl.textContent = question.text;
+
+    if (question.status !== "open") {
+      optionsEl.innerHTML = "";
+      messageEl.textContent = "Voting is closed for this question.";
+      return;
+    }
+
+    messageEl.textContent = "";
+
+    optionsEl.innerHTML = question.options.map((option, index) => `
+      <button class="button secondary" data-vote-index="${index}" type="button">
+        ${escapeHtml(option)}
+      </button>
+    `).join("");
   }
 
-  questionEl.textContent = question.text;
+  onSessionChange(draw);
 
-  if (question.status !== "open") {
-    optionsEl.innerHTML = "";
-    messageEl.textContent = "Voting is closed for this question.";
-    return;
-  }
-
-  optionsEl.innerHTML = question.options.map((option, index) => `
-    <button class="button secondary" data-vote-index="${index}" type="button">
-      ${escapeHtml(option)}
-    </button>
-  `).join("");
-
-  optionsEl.addEventListener("click", (event) => {
+  optionsEl.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-vote-index]");
     if (!button) return;
 
     const voteIndex = Number(button.dataset.voteIndex);
-    state = loadState();
-    question = activeQuestion(state);
+    const snapshot = await sessionRef.get();
+    state = normalizeState(snapshot.val());
+    const question = activeQuestion(state);
 
     if (!question || question.status !== "open") {
       messageEl.textContent = "Voting is closed.";
@@ -207,7 +288,7 @@ function renderVoteView() {
     }
 
     question.votes[voteIndex] = Number(question.votes[voteIndex] || 0) + 1;
-    saveState(state);
+    await saveState(state);
     messageEl.textContent = "Vote submitted. Thank you.";
   });
 }
@@ -222,8 +303,7 @@ function renderSlideView() {
     return;
   }
 
-  function draw() {
-    const state = loadState();
+  function draw(state) {
     const question = activeQuestion(state);
 
     sessionEl.textContent = state.sessionName || "PollPulse Session";
@@ -256,8 +336,7 @@ function renderSlideView() {
     }).join("");
   }
 
-  draw();
-  setInterval(draw, 1000);
+  onSessionChange(draw);
 }
 
 function escapeHtml(value) {
@@ -269,6 +348,15 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-renderMissionControl();
-renderVoteView();
-renderSlideView();
+ensureSession()
+  .then(() => {
+    renderMissionControl();
+    renderVoteView();
+    renderSlideView();
+  })
+  .catch((error) => {
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      `<div style="background:#fee2e2;color:#7f1d1d;padding:12px 16px;font-weight:800;">Firebase error: ${escapeHtml(error.message)}</div>`
+    );
+  });
