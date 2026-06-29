@@ -26,7 +26,10 @@
           <input id="session-name" type="text" value="Product Team Check-in">
         </label>
 
-        <button class="button" id="save-session" type="button">Save Session</button>
+        <div class="form-actions">
+          <button class="button" id="save-session" type="button">Save Session</button>
+          <span id="session-save-status" class="save-status" role="status" aria-live="polite"></span>
+        </div>
       </section>
 
       <section class="panel" style="margin-top: 18px;">
@@ -42,7 +45,10 @@
           <textarea id="question-options" rows="5" placeholder="Option A&#10;Option B&#10;Option C"></textarea>
         </label>
 
-        <button class="button" id="add-question" type="button">Add Question</button>
+        <div class="form-actions">
+          <button class="button" id="add-question" type="button">Add Question</button>
+          <span id="question-save-status" class="save-status" role="status" aria-live="polite"></span>
+        </div>
       </section>
 
       <section class="panel" style="margin-top: 18px;">
@@ -52,6 +58,6 @@
     </main>
   </div>
 
-  <script src="assets/app.js"></script>
+  <script src="assets/app.js?v=2"></script>
 </body>
 </html>
