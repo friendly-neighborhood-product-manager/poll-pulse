@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Slide</title>
-  <link rel="stylesheet" href="assets/styles.css?v=8">
+  <link rel="stylesheet" href="assets/styles.css?v=9">
 </head>
 <body>
   <div class="app-shell">
@@ -12,7 +12,7 @@
       <a class="brand" href="index.html">Poll<span>Pulse</span></a>
       <nav class="nav-links" aria-label="Primary">
         <a href="mission-control.html">Mission Control</a>
-        <a class="secondary" href="vote.html">Vote</a>
+        <a class="secondary" href="vote.html?v=9">Vote</a>
       </nav>
     </header>
 
@@ -37,6 +37,7 @@
           </div>
 
           <button class="button danger" id="stop-voting" type="button">Stop Now</button>
+          <button class="button secondary" id="clear-votes" type="button">Clear Votes</button>
 
           <div class="question-nav" aria-label="Question navigation">
             <button class="button secondary" id="first-question" type="button" title="First question">|◀</button>
@@ -55,7 +56,7 @@
           <aside class="qr-panel">
             <strong>Vote</strong>
             <div id="slide-qr" class="qr-code"></div>
-            <a id="slide-vote-link" href="vote.html" target="_blank" rel="noopener">Open Vote View</a>
+            <a id="slide-vote-link" href="vote.html?v=9" target="_blank" rel="noopener">Open Vote View</a>
           </aside>
         </div>
       </section>
@@ -64,6 +65,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=8"></script>
+  <script src="assets/app.js?v=9"></script>
 </body>
 </html>
