@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PollPulse Vote</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="index.html">Poll<span>Pulse</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="mission-control.html">Mission Control</a>
+        <a class="secondary" href="slide.html">Slide</a>
+      </nav>
+    </header>
+
+    <main class="page">
+      <section class="panel">
+        <p id="vote-session"></p>
+        <h1 id="vote-question">Loading question...</h1>
+        <div id="vote-options" class="card-grid" style="grid-template-columns: 1fr;"></div>
+        <p id="vote-message"></p>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
