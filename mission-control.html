@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Mission Control</title>
-  <link rel="stylesheet" href="assets/styles.css?v=6">
+  <link rel="stylesheet" href="assets/styles.css?v=7">
 </head>
 <body>
   <div class="app-shell">
@@ -33,7 +33,9 @@
       </section>
 
       <section class="panel" style="margin-top: 18px;">
-        <h2>Add Question</h2>
+        <h2 id="question-form-title">Add Question</h2>
+
+        <input id="editing-question-index" type="hidden" value="">
 
         <label>
           Question
@@ -55,6 +57,7 @@
 
         <div class="form-actions">
           <button class="button" id="add-question" type="button">Add Question</button>
+          <button class="button secondary" id="cancel-edit" type="button" hidden>Cancel Edit</button>
           <span id="question-save-status" class="save-status" role="status" aria-live="polite"></span>
         </div>
       </section>
@@ -68,6 +71,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=6"></script>
+  <script src="assets/app.js?v=7"></script>
 </body>
 </html>
