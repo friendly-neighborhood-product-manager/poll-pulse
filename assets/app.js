@@ -47,18 +47,22 @@ function renderMissionControl() {
   sessionInput.value = state.sessionName || "";
 
   function drawQuestions() {
-    questionList.innerHTML = state.questions.map((question, index) => `
-      <div class="card" style="margin-top: 12px; border-color: ${index === state.activeQuestionIndex ? "#2563eb" : "var(--border)"};">
-        <strong>${index + 1}. ${escapeHtml(question.text)}</strong>
-        <span>${question.options.map(escapeHtml).join(", ")}</span>
-        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="button secondary" data-action="activate" data-index="${index}" type="button">Make Active</button>
-          <button class="button secondary" data-action="toggle" data-index="${index}" type="button">
-            ${question.status === "open" ? "Close Voting" : "Open Voting"}
-          </button>
+    questionList.innerHTML = state.questions.map((question, index) => {
+      const voteTotal = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+
+      return `
+        <div class="card" style="margin-top: 12px; border-color: ${index === state.activeQuestionIndex ? "#2563eb" : "var(--border)"};">
+          <strong>${index + 1}. ${escapeHtml(question.text)}</strong>
+          <span>${question.options.map(escapeHtml).join(", ")} · ${voteTotal} votes · ${question.status}</span>
+          <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="button secondary" data-action="activate" data-index="${index}" type="button">Make Active</button>
+            <button class="button secondary" data-action="toggle" data-index="${index}" type="button">
+              ${question.status === "open" ? "Close Voting" : "Open Voting"}
+            </button>
+          </div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   }
 
   saveButton.addEventListener("click", () => {
@@ -169,6 +173,54 @@ function renderVoteView() {
   });
 }
 
+function renderSlideView() {
+  const sessionEl = document.getElementById("slide-session");
+  const questionEl = document.getElementById("slide-question");
+  const statusEl = document.getElementById("slide-status");
+  const resultsEl = document.getElementById("slide-results");
+
+  if (!sessionEl || !questionEl || !resultsEl) {
+    return;
+  }
+
+  function draw() {
+    const state = loadState();
+    const question = activeQuestion(state);
+
+    sessionEl.textContent = state.sessionName || "PollPulse Session";
+
+    if (!question) {
+      questionEl.textContent = "No active question yet.";
+      statusEl.textContent = "";
+      resultsEl.innerHTML = "";
+      return;
+    }
+
+    const total = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
+
+    questionEl.textContent = question.text;
+    statusEl.textContent = `${question.status.toUpperCase()} · ${total} votes`;
+
+    resultsEl.innerHTML = question.options.map((option, index) => {
+      const count = Number(question.votes[index] || 0);
+      const percent = total ? Math.round((count / total) * 100) : 0;
+
+      return `
+        <div class="card" style="margin-top: 14px;">
+          <strong>${escapeHtml(option)}</strong>
+          <span>${count} votes · ${percent}%</span>
+          <div style="height: 14px; background: #e5e7eb; border-radius: 999px; margin-top: 10px; overflow: hidden;">
+            <div style="height: 100%; width: ${percent}%; background: #2563eb;"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  draw();
+  setInterval(draw, 1000);
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -180,3 +232,4 @@ function escapeHtml(value) {
 
 renderMissionControl();
 renderVoteView();
+renderSlideView();
