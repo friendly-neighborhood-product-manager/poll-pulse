@@ -258,35 +258,111 @@ textarea:focus {
   margin: 0 0 8px;
 }
 
+.vote-meta-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.vote-status-pill,
+.vote-countdown-pill {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 8px 11px;
+}
+
+.vote-status-pill {
+  background: #eef2ff;
+  color: var(--accent-dark);
+}
+
+.vote-status-pill.is-closed {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.vote-countdown-pill {
+  background: #111827;
+  color: #ffffff;
+}
+
+.vote-countdown-pill:empty {
+  display: none;
+}
+
 .vote-options {
   display: grid;
   gap: 12px;
 }
 
 .vote-option {
-  align-items: center;
+  align-items: stretch;
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 8px;
+  color: var(--text);
   cursor: pointer;
-  display: flex;
-  gap: 12px;
-  min-height: 58px;
-  padding: 14px;
-}
-
-.vote-option input {
-  width: auto;
-}
-
-.vote-option span {
-  font-size: 17px;
-  font-weight: 800;
-}
-
-.vote-submit {
-  margin-top: 20px;
-  min-height: 48px;
+  display: grid;
+  gap: 10px;
+  min-height: 62px;
+  padding: 15px;
+  text-align: left;
   width: 100%;
+}
+
+.vote-option span:first-child {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.vote-option.is-selected {
+  background: #dbeafe;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+.vote-option.is-closed {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: default;
+}
+
+.vote-option.is-closed.is-selected {
+  background: #e0e7ff;
+  border-color: #818cf8;
+  color: #1f2937;
+}
+
+.vote-result {
+  display: grid;
+  gap: 7px;
+}
+
+.vote-result-line {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.vote-result-line small {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.vote-result-track {
+  background: #e5e7eb;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.vote-result-fill {
+  background: var(--accent);
+  height: 100%;
 }
 
 .vote-message {
@@ -370,13 +446,19 @@ textarea:focus {
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
-  min-height: 190px;
+  min-height: 0;
+  overflow: hidden;
   padding: 10px;
   place-items: center;
+  width: 100%;
 }
 
+.qr-code img,
 .qr-code canvas {
+  display: block;
+  height: auto;
   max-width: 100%;
+  width: 100%;
 }
 
 .qr-panel a {
@@ -384,6 +466,7 @@ textarea:focus {
   display: block;
   font-weight: 800;
   margin-top: 12px;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
