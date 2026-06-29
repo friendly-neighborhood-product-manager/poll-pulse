@@ -48,7 +48,7 @@ function normalizeState(value) {
       ? state.sessionName
       : fallback.sessionName,
     activeQuestionIndex: Number.isInteger(state.activeQuestionIndex)
-      ? state.activeQuestionIndex
+      ? Math.max(0, Math.min(state.activeQuestionIndex, Math.max(questions.length - 1, 0)))
       : 0,
     updatedAt: Number(state.updatedAt || Date.now()),
     questions: questions.length ? questions.map(normalizeQuestion) : fallback.questions
@@ -68,7 +68,7 @@ function normalizeQuestion(question) {
     text: String(question.text || "Untitled question"),
     type: question.type === "multi" ? "multi" : "single",
     options: options.length ? options : ["Option A", "Option B"],
-    votes: options.map((_, index) => Number(votes[index] || 0)),
+    votes: options.map((_, index) => Math.max(0, Number(votes[index] || 0))),
     voterSelections: question.voterSelections && typeof question.voterSelections === "object"
       ? question.voterSelections
       : {},
@@ -78,12 +78,10 @@ function normalizeQuestion(question) {
 }
 
 function saveState(state) {
-  const nextState = {
+  return sessionRef.set({
     ...state,
     updatedAt: Date.now()
-  };
-
-  return sessionRef.set(nextState);
+  });
 }
 
 function activeQuestion(state) {
@@ -98,7 +96,7 @@ function getVoterId() {
   let voterId = sessionStorage.getItem(VOTER_ID_KEY);
 
   if (!voterId) {
-    voterId = `voter_${crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2)}`;
+    voterId = `voter_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     sessionStorage.setItem(VOTER_ID_KEY, voterId);
   }
 
@@ -156,20 +154,48 @@ function closeExpiredQuestion(state) {
   return true;
 }
 
+function recalculateVotes(question) {
+  question.votes = question.options.map(() => 0);
+
+  Object.values(question.voterSelections || {}).forEach((selection) => {
+    const selectedIndexes = Array.isArray(selection) ? selection : [selection];
+
+    selectedIndexes.forEach((index) => {
+      const voteIndex = Number(index);
+      if (Number.isInteger(voteIndex) && voteIndex >= 0 && voteIndex < question.votes.length) {
+        question.votes[voteIndex] += 1;
+      }
+    });
+  });
+}
+
 function renderMissionControl() {
   const sessionInput = document.getElementById("session-name");
+  const questionFormTitle = document.getElementById("question-form-title");
+  const editingQuestionIndex = document.getElementById("editing-question-index");
   const questionType = document.getElementById("question-type");
   const questionText = document.getElementById("question-text");
   const questionOptions = document.getElementById("question-options");
   const questionList = document.getElementById("question-list");
   const saveButton = document.getElementById("save-session");
   const addButton = document.getElementById("add-question");
+  const cancelEditButton = document.getElementById("cancel-edit");
 
   if (!sessionInput || !questionList) {
     return;
   }
 
   let state = defaultState();
+
+  function resetQuestionForm() {
+    editingQuestionIndex.value = "";
+    questionFormTitle.textContent = "Add Question";
+    addButton.textContent = "Add Question";
+    cancelEditButton.hidden = true;
+    questionText.value = "";
+    questionOptions.value = "";
+    questionType.value = "single";
+  }
 
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => {
@@ -185,6 +211,8 @@ function renderMissionControl() {
             <button class="button secondary" data-action="toggle" data-index="${index}" type="button">
               ${question.status === "open" ? "Close Voting" : "Open Voting"}
             </button>
+            <button class="button secondary" data-action="edit" data-index="${index}" type="button">Edit</button>
+            <button class="button danger" data-action="delete" data-index="${index}" type="button">Delete</button>
           </div>
         </div>
       `;
@@ -223,13 +251,14 @@ function renderMissionControl() {
       .split(/\r?\n/)
       .map((option) => option.trim())
       .filter(Boolean);
+    const editIndex = editingQuestionIndex.value === "" ? -1 : Number(editingQuestionIndex.value);
 
     if (!text || options.length < 2) {
       setStatus("question-save-status", "Add a question and at least two options.");
       return;
     }
 
-    state.questions.push({
+    const nextQuestion = {
       text,
       type: questionType && questionType.value === "multi" ? "multi" : "single",
       options,
@@ -237,23 +266,31 @@ function renderMissionControl() {
       voterSelections: {},
       status: "open",
       closesAt: null
-    });
+    };
 
-    state.activeQuestionIndex = state.questions.length - 1;
-    questionText.value = "";
-    questionOptions.value = "";
+    if (editIndex >= 0 && state.questions[editIndex]) {
+      state.questions[editIndex] = nextQuestion;
+      state.activeQuestionIndex = editIndex;
+      setStatus("question-save-status", "Question updated and votes reset.");
+    } else {
+      state.questions.push(nextQuestion);
+      state.activeQuestionIndex = state.questions.length - 1;
+      setStatus("question-save-status", "Question added and made active.");
+    }
 
+    resetQuestionForm();
     await saveState(state);
 
-    addButton.textContent = "Added";
+    addButton.textContent = "Saved";
     addButton.disabled = true;
-    setStatus("question-save-status", "Question added and made active.");
 
     window.setTimeout(() => {
-      addButton.textContent = "Add Question";
+      addButton.textContent = editingQuestionIndex.value === "" ? "Add Question" : "Save Question";
       addButton.disabled = false;
-    }, 1200);
+    }, 900);
   });
+
+  cancelEditButton.addEventListener("click", resetQuestionForm);
 
   questionList.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
@@ -265,15 +302,51 @@ function renderMissionControl() {
     if (action === "activate") {
       state.activeQuestionIndex = index;
       setStatus("question-save-status", "Active question updated.");
+      await saveState(state);
     }
 
     if (action === "toggle") {
       state.questions[index].status = state.questions[index].status === "open" ? "closed" : "open";
       state.questions[index].closesAt = null;
       setStatus("question-save-status", `Voting is now ${state.questions[index].status}.`);
+      await saveState(state);
     }
 
-    await saveState(state);
+    if (action === "edit") {
+      const question = state.questions[index];
+
+      editingQuestionIndex.value = String(index);
+      questionFormTitle.textContent = "Edit Question";
+      addButton.textContent = "Save Question";
+      cancelEditButton.hidden = false;
+      questionText.value = question.text;
+      questionType.value = question.type;
+      questionOptions.value = question.options.join("\n");
+      questionText.focus();
+      setStatus("question-save-status", "Editing question. Saving will reset votes.");
+    }
+
+    if (action === "delete") {
+      if (!window.confirm("Delete this question? This cannot be undone.")) {
+        return;
+      }
+
+      state.questions.splice(index, 1);
+
+      if (!state.questions.length) {
+        state.questions = defaultState().questions;
+      }
+
+      state.activeQuestionIndex = Math.max(0, Math.min(state.activeQuestionIndex, state.questions.length - 1));
+
+      if (state.activeQuestionIndex >= index) {
+        state.activeQuestionIndex = Math.max(0, state.activeQuestionIndex - 1);
+      }
+
+      resetQuestionForm();
+      setStatus("question-save-status", "Question deleted.");
+      await saveState(state);
+    }
   });
 }
 
@@ -281,12 +354,10 @@ function renderVoteView() {
   const sessionEl = document.getElementById("vote-session");
   const typeEl = document.getElementById("vote-type");
   const questionEl = document.getElementById("vote-question");
-  const formEl = document.getElementById("vote-form");
   const optionsEl = document.getElementById("vote-options");
-  const submitEl = document.getElementById("vote-submit");
   const messageEl = document.getElementById("vote-message");
 
-  if (!sessionEl || !questionEl || !optionsEl || !formEl) {
+  if (!sessionEl || !questionEl || !optionsEl) {
     return;
   }
 
@@ -303,47 +374,43 @@ function renderVoteView() {
     if (!question) {
       questionEl.textContent = "No active question yet.";
       optionsEl.innerHTML = "";
-      submitEl.hidden = true;
       return;
     }
 
-    const hasVoted = Boolean(question.voterSelections[voterId]);
+    const selected = question.voterSelections[voterId] || [];
+    const selectedIndexes = Array.isArray(selected) ? selected.map(Number) : [Number(selected)];
 
     questionEl.textContent = question.text;
-    typeEl.textContent = question.type === "multi" ? "Choose one or more options." : "Choose one option.";
+    typeEl.textContent = question.type === "multi"
+      ? "Tap one or more options. Your choices can change until voting closes."
+      : "Tap one option. Tapping another option changes your vote.";
 
     if (question.status !== "open") {
       optionsEl.innerHTML = "";
-      submitEl.hidden = true;
       messageEl.textContent = "Voting is closed for this question.";
       return;
     }
 
-    if (hasVoted) {
-      optionsEl.innerHTML = "";
-      submitEl.hidden = true;
-      messageEl.textContent = "Your vote has already been submitted in this browser window.";
-      return;
-    }
+    messageEl.textContent = selectedIndexes.length ? "Your current vote is saved." : "";
 
-    submitEl.hidden = false;
-    messageEl.textContent = "";
+    optionsEl.innerHTML = question.options.map((option, index) => {
+      const isSelected = selectedIndexes.includes(index);
 
-    const inputType = question.type === "multi" ? "checkbox" : "radio";
-
-    optionsEl.innerHTML = question.options.map((option, index) => `
-      <label class="vote-option">
-        <input name="pollpulse-vote" value="${index}" type="${inputType}">
-        <span>${escapeHtml(option)}</span>
-      </label>
-    `).join("");
+      return `
+        <button class="vote-option ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button">
+          <span>${escapeHtml(option)}</span>
+        </button>
+      `;
+    }).join("");
   }
 
   onSessionChange(draw);
 
-  formEl.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  optionsEl.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-vote-index]");
+    if (!button) return;
 
+    const voteIndex = Number(button.dataset.voteIndex);
     const snapshot = await sessionRef.get();
     state = normalizeState(snapshot.val());
     closeExpiredQuestion(state);
@@ -355,31 +422,26 @@ function renderVoteView() {
       return;
     }
 
-    if (question.voterSelections[voterId]) {
-      messageEl.textContent = "Your vote has already been submitted in this browser window.";
-      return;
+    const currentSelection = question.voterSelections[voterId] || [];
+    let nextSelection = Array.isArray(currentSelection)
+      ? currentSelection.map(Number)
+      : [Number(currentSelection)];
+
+    if (question.type === "single") {
+      nextSelection = [voteIndex];
+    } else if (nextSelection.includes(voteIndex)) {
+      nextSelection = nextSelection.filter((index) => index !== voteIndex);
+    } else {
+      nextSelection.push(voteIndex);
     }
 
-    const selected = Array.from(formEl.querySelectorAll("input[name='pollpulse-vote']:checked"))
-      .map((input) => Number(input.value));
+    question.voterSelections[voterId] = nextSelection;
+    recalculateVotes(question);
 
-    if (!selected.length) {
-      messageEl.textContent = "Choose an option before submitting.";
-      return;
-    }
-
-    if (question.type === "single" && selected.length > 1) {
-      messageEl.textContent = "Choose only one option.";
-      return;
-    }
-
-    selected.forEach((index) => {
-      question.votes[index] = Number(question.votes[index] || 0) + 1;
-    });
-
-    question.voterSelections[voterId] = selected;
     await saveState(state);
-    messageEl.textContent = "Vote submitted. Thank you.";
+    messageEl.textContent = question.type === "multi"
+      ? "Selection updated."
+      : "Vote updated.";
   });
 }
 
@@ -408,19 +470,15 @@ function renderSlideView() {
 
   function renderQr() {
     const voteUrl = currentVoteUrl();
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(voteUrl)}`;
 
     if (voteLinkEl) {
       voteLinkEl.href = voteUrl;
       voteLinkEl.textContent = voteUrl;
     }
 
-    if (qrEl && window.QRCode) {
-      qrEl.innerHTML = "";
-      window.QRCode.toCanvas(voteUrl, { width: 180, margin: 1 }, (error, canvas) => {
-        if (!error) {
-          qrEl.appendChild(canvas);
-        }
-      });
+    if (qrEl) {
+      qrEl.innerHTML = `<img src="${qrUrl}" width="220" height="220" alt="QR code for PollPulse vote page">`;
     }
   }
 
