@@ -6,6 +6,9 @@
   --border: #d8dde6;
   --accent: #2563eb;
   --accent-dark: #1d4ed8;
+  --success-bg: #e9f8ef;
+  --success-border: #9ed9b4;
+  --success-text: #116329;
 }
 
 * {
@@ -35,6 +38,7 @@ body {
 }
 
 .brand {
+  color: var(--accent);
   font-size: 24px;
   font-weight: 800;
   letter-spacing: 0;
@@ -67,6 +71,11 @@ body {
 .button.secondary {
   background: #eef2ff;
   color: var(--accent-dark);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .page {
@@ -103,42 +112,16 @@ body {
   padding: 24px;
 }
 
-.card-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.panel h1,
+.panel h2 {
+  margin-top: 0;
 }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 22px;
-}
-
-.card strong {
-  display: block;
-  font-size: 18px;
-  margin-bottom: 8px;
-}
-
-.card span {
+.panel p {
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-@media (max-width: 760px) {
-  .app-header,
-  .nav-links {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .hero,
-  .card-grid {
-    grid-template-columns: 1fr;
-  }
-}
 label {
   color: var(--text);
   display: grid;
@@ -179,18 +162,51 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
 }
 
-.panel > .button {
+.form-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 18px;
 }
 
-.panel h1,
-.panel h2 {
-  margin-top: 0;
+.save-status {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  border-radius: 999px;
+  color: var(--success-text);
+  display: none;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 9px 12px;
 }
 
-.panel p {
+.save-status.is-visible {
+  display: inline-flex;
+}
+
+.card-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.card strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.card span {
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 #question-options {
@@ -199,4 +215,17 @@ textarea:focus {
 
 #question-list .card {
   padding: 24px;
+}
+
+@media (max-width: 760px) {
+  .app-header,
+  .nav-links {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hero,
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
 }
