@@ -46,6 +46,26 @@ function renderMissionControl() {
   let state = loadState();
   sessionInput.value = state.sessionName || "";
 
+  function showFeedback(anchor, messageText) {
+    const existingMessage = document.getElementById("pollpulse-feedback");
+    if (existingMessage) {
+      existingMessage.remove();
+    }
+
+    const message = document.createElement("span");
+    message.id = "pollpulse-feedback";
+    message.textContent = messageText;
+    message.style.color = "#2563eb";
+    message.style.fontWeight = "800";
+    message.style.marginLeft = "12px";
+
+    anchor.insertAdjacentElement("afterend", message);
+
+    window.setTimeout(() => {
+      message.remove();
+    }, 2200);
+  }
+
   function drawQuestions() {
     questionList.innerHTML = state.questions.map((question, index) => {
       const voteTotal = question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
@@ -66,9 +86,20 @@ function renderMissionControl() {
   }
 
   saveButton.addEventListener("click", () => {
-    state.sessionName = sessionInput.value.trim() || "Untitled Session";
+    const nextName = sessionInput.value.trim() || "Untitled Session";
+
+    state.sessionName = nextName;
     saveState(state);
     drawQuestions();
+
+    saveButton.textContent = "Saved";
+    saveButton.disabled = true;
+    showFeedback(saveButton, `Session saved as "${nextName}".`);
+
+    window.setTimeout(() => {
+      saveButton.textContent = "Save Session";
+      saveButton.disabled = false;
+    }, 1800);
   });
 
   addButton.addEventListener("click", () => {
@@ -95,6 +126,15 @@ function renderMissionControl() {
     questionOptions.value = "";
     saveState(state);
     drawQuestions();
+
+    addButton.textContent = "Added";
+    addButton.disabled = true;
+    showFeedback(addButton, "Question added and made active.");
+
+    window.setTimeout(() => {
+      addButton.textContent = "Add Question";
+      addButton.disabled = false;
+    }, 1800);
   });
 
   questionList.addEventListener("click", (event) => {
@@ -106,10 +146,12 @@ function renderMissionControl() {
 
     if (action === "activate") {
       state.activeQuestionIndex = index;
+      showFeedback(button, "Active question updated.");
     }
 
     if (action === "toggle") {
       state.questions[index].status = state.questions[index].status === "open" ? "closed" : "open";
+      showFeedback(button, `Voting is now ${state.questions[index].status}.`);
     }
 
     saveState(state);
