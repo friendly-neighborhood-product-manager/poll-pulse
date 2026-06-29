@@ -139,3 +139,64 @@ body {
     grid-template-columns: 1fr;
   }
 }
+label {
+  color: var(--text);
+  display: grid;
+  font-size: 14px;
+  font-weight: 800;
+  gap: 8px;
+  line-height: 1.2;
+  margin-top: 18px;
+}
+
+input,
+textarea {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  outline: none;
+  padding: 12px 14px;
+  width: 100%;
+}
+
+textarea {
+  min-height: 132px;
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #8a94a6;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+}
+
+.panel > .button {
+  margin-top: 18px;
+}
+
+.panel h1,
+.panel h2 {
+  margin-top: 0;
+}
+
+.panel p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+#question-options {
+  font-family: inherit;
+}
+
+#question-list .card {
+  padding: 24px;
+}
