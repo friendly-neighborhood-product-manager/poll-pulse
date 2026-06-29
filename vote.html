@@ -4,30 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Vote</title>
-  <link rel="stylesheet" href="assets/styles.css?v=5">
+  <link rel="stylesheet" href="assets/styles.css?v=6">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="app-header">
+  <div class="app-shell vote-shell">
+    <header class="app-header vote-header">
       <a class="brand" href="index.html">Poll<span>Pulse</span></a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="mission-control.html">Mission Control</a>
-        <a class="secondary" href="slide.html">Slide</a>
-      </nav>
     </header>
 
-    <main class="page">
-      <section class="panel">
+    <main class="page vote-page">
+      <section class="panel vote-panel">
         <p id="vote-session"></p>
+        <p id="vote-type"></p>
         <h1 id="vote-question">Loading question...</h1>
-        <div id="vote-options" class="card-grid" style="grid-template-columns: 1fr;"></div>
-        <p id="vote-message"></p>
+        <form id="vote-form">
+          <div id="vote-options" class="vote-options"></div>
+          <button class="button vote-submit" id="vote-submit" type="submit">Submit Vote</button>
+        </form>
+        <p id="vote-message" class="vote-message"></p>
       </section>
     </main>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=5"></script>
+  <script src="assets/app.js?v=6"></script>
 </body>
 </html>
