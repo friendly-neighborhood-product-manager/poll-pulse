@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Mission Control</title>
-  <link rel="stylesheet" href="assets/styles.css?v=11">
+  <link rel="stylesheet" href="assets/styles.css?v=12">
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
       <a class="brand" href="index.html">Poll<span>Pulse</span></a>
       <nav class="nav-links" aria-label="Primary">
-        <a id="mission-vote-link" href="vote.html?v=11">Vote</a>
-        <a id="mission-slide-link" class="secondary" href="slide.html?v=11">Slide</a>
+        <a id="mission-vote-link" href="vote.html?v=12">Vote</a>
+        <a id="mission-slide-link" class="secondary" href="slide.html?v=12">Slide</a>
       </nav>
     </header>
 
@@ -21,45 +21,28 @@
         <h1>Mission Control</h1>
         <p>Create a new polling session, edit an existing session, or delete a session from history.</p>
 
-        <div class="session-admin-grid">
-          <label>
-            What would you like to do?
-            <span class="select-shell">
-              <select id="session-admin-action">
-                <option value="create">Create a new session</option>
-                <option value="edit">Edit an existing session</option>
-                <option value="delete">Delete an existing session</option>
-              </select>
-            </span>
-          </label>
-
-          <label id="existing-session-field" hidden>
-            Existing session
-            <span class="select-shell">
-              <select id="existing-session-select">
-                <option value="">Loading sessions...</option>
-              </select>
-            </span>
-          </label>
-
-          <label id="delete-session-field" hidden>
-            Session to delete
-            <span class="select-shell">
-              <select id="delete-session-select">
-                <option value="">Loading sessions...</option>
-              </select>
-            </span>
-          </label>
+        <div class="session-mode-block">
+          <p class="field-label">What would you like to do?</p>
+          <div class="session-mode-buttons" role="group" aria-label="Session action">
+            <button class="button session-mode-button is-active" data-session-mode="create" type="button">Create a New Session</button>
+            <button class="button secondary session-mode-button" data-session-mode="edit" type="button">Edit an Existing Session</button>
+            <button class="button secondary session-mode-button" data-session-mode="delete" type="button">Delete a Session</button>
+          </div>
         </div>
 
-        <label>
-          Session name
+        <div id="session-list-panel" class="session-list-panel" hidden>
+          <h2 id="session-list-title">Select a session</h2>
+          <p id="session-list-help">Choose an existing session.</p>
+          <div id="session-card-list" class="session-card-list"></div>
+        </div>
+
+        <label id="session-name-field">
+          Session Name
           <input id="session-name" type="text" placeholder="Product Team Check-in">
         </label>
 
         <div class="form-actions">
           <button class="button" id="save-session" type="button">Create Session</button>
-          <button class="button danger" id="delete-session" type="button" hidden>Delete Session</button>
           <span id="session-save-status" class="save-status" role="status" aria-live="polite"></span>
         </div>
       </section>
@@ -68,8 +51,8 @@
         <h2>Current Session</h2>
         <p id="active-session-summary">Create or select a session to start.</p>
         <div class="form-actions">
-          <a class="button secondary" id="active-slide-link" href="slide.html?v=11">Open Slide View</a>
-          <a class="button secondary" id="active-vote-link" href="vote.html?v=11">Open Vote View</a>
+          <a class="button secondary" id="active-slide-link" href="slide.html?v=12">Open Slide View</a>
+          <a class="button secondary" id="active-vote-link" href="vote.html?v=12">Open Vote View</a>
         </div>
       </section>
 
@@ -114,6 +97,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=11"></script>
+  <script src="assets/app.js?v=12"></script>
 </body>
 </html>
