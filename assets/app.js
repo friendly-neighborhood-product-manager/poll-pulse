@@ -1,4 +1,4 @@
-const POLLPULSE_VERSION = "11";
+const POLLPULSE_VERSION = "12";
 const POLLPULSE_SESSIONS_PATH = "pollpulse/sessions";
 const DEFAULT_SESSION_ID = "demo";
 const CURRENT_SESSION_KEY = "pollpulse-current-session-id";
@@ -302,11 +302,12 @@ function updateSessionLinks(sessionId) {
 }
 
 function renderMissionControl() {
-  const adminAction = document.getElementById("session-admin-action");
-  const existingSessionField = document.getElementById("existing-session-field");
-  const existingSessionSelect = document.getElementById("existing-session-select");
-  const deleteSessionField = document.getElementById("delete-session-field");
-  const deleteSessionSelect = document.getElementById("delete-session-select");
+  const modeButtons = Array.from(document.querySelectorAll("[data-session-mode]"));
+  const sessionListPanel = document.getElementById("session-list-panel");
+  const sessionListTitle = document.getElementById("session-list-title");
+  const sessionListHelp = document.getElementById("session-list-help");
+  const sessionCardList = document.getElementById("session-card-list");
+  const sessionNameField = document.getElementById("session-name-field");
   const sessionInput = document.getElementById("session-name");
   const activeSessionSummary = document.getElementById("active-session-summary");
   const questionEditorPanel = document.getElementById("question-editor-panel");
@@ -318,17 +319,17 @@ function renderMissionControl() {
   const questionOptions = document.getElementById("question-options");
   const questionList = document.getElementById("question-list");
   const saveButton = document.getElementById("save-session");
-  const deleteButton = document.getElementById("delete-session");
   const addButton = document.getElementById("add-question");
   const cancelEditButton = document.getElementById("cancel-edit");
 
-  if (!adminAction || !sessionInput || !questionList) {
+  if (!modeButtons.length || !sessionInput || !questionList) {
     return;
   }
 
+  let mode = "create";
   let state = null;
   let sessions = [];
-  let selectedSessionId = localStorage.getItem(CURRENT_SESSION_KEY) || "";
+  let selectedSessionId = "";
   let selectedSessionListenerRef = null;
 
   function resetQuestionForm() {
@@ -346,21 +347,51 @@ function renderMissionControl() {
     questionHistoryPanel.hidden = !enabled;
   }
 
+  function detachSelectedSessionListener() {
+    if (selectedSessionListenerRef) {
+      selectedSessionListenerRef.off();
+      selectedSessionListenerRef = null;
+    }
+  }
+
+  function renderModeButtons() {
+    modeButtons.forEach((button) => {
+      const isActive = button.dataset.sessionMode === mode;
+      button.classList.toggle("is-active", isActive);
+      button.classList.toggle("secondary", !isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+  }
+
   function renderActiveSessionSummary() {
     if (!state) {
-      activeSessionSummary.textContent = "Create or select a session to start.";
-      updateSessionLinks(selectedSessionId || DEFAULT_SESSION_ID);
+      if (mode === "create") {
+        activeSessionSummary.textContent = "Name your new session, then create it. New sessions start with no questions.";
+      } else if (mode === "edit") {
+        activeSessionSummary.textContent = "Choose a saved session to edit.";
+      } else {
+        activeSessionSummary.textContent = "Choose a saved session to delete.";
+      }
+
+      updateSessionLinks(activeSessionId);
       return;
     }
 
     const questionCount = state.questions.length;
     const createdDate = state.createdAt ? new Date(state.createdAt).toLocaleString() : "Unknown";
-    activeSessionSummary.textContent = `${state.sessionName} · ${questionCount} question${questionCount === 1 ? "" : "s"} · created ${createdDate}`;
+
+    if (mode === "delete") {
+      activeSessionSummary.textContent = `Ready to delete "${state.sessionName}" and its ${questionCount} question${questionCount === 1 ? "" : "s"}.`;
+      updateSessionLinks(activeSessionId);
+      return;
+    }
+
+    activeSessionSummary.textContent = `${state.sessionName} | ${questionCount} question${questionCount === 1 ? "" : "s"} | created ${createdDate}`;
     updateSessionLinks(state.sessionId);
   }
 
   function drawQuestions() {
-    if (!state) {
+    if (!state || mode !== "edit") {
       questionList.innerHTML = "";
       renderActiveSessionSummary();
       return;
@@ -384,7 +415,7 @@ function renderMissionControl() {
       return `
         <div class="card" style="margin-top: 12px; border-color: ${index === state.activeQuestionIndex ? "#2563eb" : "var(--border)"};">
           <strong>${index + 1}. ${escapeHtml(question.text)}</strong>
-          <span>${typeLabel} · ${question.options.map(escapeHtml).join(", ")} · ${voteTotal} votes · ${question.status}</span>
+          <span>${typeLabel} | ${question.options.map(escapeHtml).join(", ")} | ${voteTotal} votes | ${question.status}</span>
           <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
             <button class="button secondary" data-action="activate" data-index="${index}" type="button">Make Active</button>
             <button class="button secondary" data-action="toggle" data-index="${index}" type="button">
@@ -400,51 +431,91 @@ function renderMissionControl() {
     renderActiveSessionSummary();
   }
 
-  function renderSessionOptions() {
-    if (!sessions.length) {
-      existingSessionSelect.innerHTML = `<option value="">No saved sessions yet</option>`;
-      existingSessionSelect.disabled = true;
-      if (deleteSessionSelect) {
-        deleteSessionSelect.innerHTML = `<option value="">No saved sessions yet</option>`;
-        deleteSessionSelect.disabled = true;
-      }
+  function renderSessionCards() {
+    if (mode === "create") {
+      sessionListPanel.hidden = true;
+      sessionCardList.innerHTML = "";
       return;
     }
 
-    existingSessionSelect.disabled = false;
-    if (deleteSessionSelect) {
-      deleteSessionSelect.disabled = false;
+    sessionListPanel.hidden = false;
+    sessionListTitle.textContent = mode === "edit" ? "Select a session to edit" : "Select a session to delete";
+    sessionListHelp.textContent = mode === "edit"
+      ? "Pick a saved session to rename it, add questions, or manage voting."
+      : "Pick a saved session to permanently remove it and its questions.";
+
+    if (!sessions.length) {
+      sessionCardList.innerHTML = `
+        <div class="card session-empty-card">
+          <strong>No saved sessions yet.</strong>
+          <span>Create a new session first.</span>
+        </div>
+      `;
+      return;
     }
 
-    const optionsHtml = sessions.map((session) => {
+    sessionCardList.innerHTML = sessions.map((session) => {
       const questionCount = session.questions.length;
+      const updatedDate = session.updatedAt ? new Date(session.updatedAt).toLocaleString() : "Unknown";
+      const isSelected = session.sessionId === selectedSessionId;
+
       return `
-        <option value="${escapeHtml(session.sessionId)}">
-          ${escapeHtml(session.sessionName)} (${questionCount} question${questionCount === 1 ? "" : "s"})
-        </option>
+        <button class="session-card-button ${isSelected ? "is-selected" : ""}" data-session-id="${escapeHtml(session.sessionId)}" type="button">
+          <strong>${escapeHtml(session.sessionName)}</strong>
+          <span>${questionCount} question${questionCount === 1 ? "" : "s"} | updated ${escapeHtml(updatedDate)}</span>
+        </button>
       `;
     }).join("");
-
-    existingSessionSelect.innerHTML = optionsHtml;
-    if (deleteSessionSelect) {
-      deleteSessionSelect.innerHTML = optionsHtml;
-    }
-
-    if (!sessions.some((session) => session.sessionId === selectedSessionId)) {
-      selectedSessionId = sessions[0].sessionId;
-    }
-
-    existingSessionSelect.value = selectedSessionId;
-    if (deleteSessionSelect) {
-      deleteSessionSelect.value = selectedSessionId;
-    }
   }
 
-  function detachSelectedSessionListener() {
-    if (selectedSessionListenerRef) {
-      selectedSessionListenerRef.off();
-      selectedSessionListenerRef = null;
+  function updateView() {
+    renderModeButtons();
+    renderSessionCards();
+
+    const hasSelectedSession = Boolean(state && selectedSessionId);
+    sessionNameField.hidden = mode === "delete" || (mode === "edit" && !hasSelectedSession);
+    sessionInput.disabled = mode === "delete";
+    setQuestionPanelsEnabled(mode === "edit" && hasSelectedSession);
+
+    saveButton.hidden = mode !== "create" && !hasSelectedSession;
+    saveButton.textContent = mode === "create"
+      ? "Create Session"
+      : mode === "delete"
+        ? "Delete Session"
+        : "Save Session";
+    saveButton.classList.toggle("danger", mode === "delete");
+
+    if (mode === "create") {
+      questionList.innerHTML = "";
+      renderActiveSessionSummary();
+      return;
     }
+
+    if (mode === "delete") {
+      questionList.innerHTML = "";
+      renderActiveSessionSummary();
+      return;
+    }
+
+    drawQuestions();
+  }
+
+  function setMode(nextMode, options = {}) {
+    mode = nextMode;
+
+    if (!options.keepSelection) {
+      detachSelectedSessionListener();
+      selectedSessionId = "";
+      state = null;
+      resetQuestionForm();
+    }
+
+    if (mode === "create") {
+      sessionInput.value = "";
+      sessionInput.focus();
+    }
+
+    updateView();
   }
 
   function attachSelectedSession(sessionId) {
@@ -454,8 +525,7 @@ function renderMissionControl() {
     if (!selectedSessionId) {
       state = null;
       sessionInput.value = "";
-      setQuestionPanelsEnabled(false);
-      drawQuestions();
+      updateView();
       return;
     }
 
@@ -468,73 +538,79 @@ function renderMissionControl() {
         sessionInput.value = state.sessionName || "";
       }
 
-      setQuestionPanelsEnabled(Boolean(state) && adminAction.value !== "delete");
-      drawQuestions();
+      updateView();
     });
   }
 
-  function applyAdminMode() {
-    const mode = adminAction.value;
-    const hasSessions = sessions.length > 0;
+  function selectSession(sessionId) {
+    selectedSessionId = cleanSessionId(sessionId);
 
-    existingSessionField.hidden = mode !== "edit";
-    if (deleteSessionField) {
-      deleteSessionField.hidden = mode !== "delete";
-    }
-    deleteButton.hidden = mode !== "delete";
-    saveButton.hidden = mode === "delete";
-    saveButton.textContent = mode === "create" ? "Create Session" : "Save Session";
-    sessionInput.disabled = mode === "delete";
-
-    if (mode === "create") {
-      detachSelectedSessionListener();
-      state = null;
-      sessionInput.value = "";
-      sessionInput.disabled = false;
-      setQuestionPanelsEnabled(false);
-      activeSessionSummary.textContent = "Name your new session, then create it. New sessions start with no questions.";
-      questionList.innerHTML = "";
-      updateSessionLinks(activeSessionId);
+    if (mode === "edit") {
+      attachSelectedSession(selectedSessionId);
       return;
     }
 
-    if (!hasSessions) {
-      state = null;
-      sessionInput.value = "";
-      setQuestionPanelsEnabled(false);
-      activeSessionSummary.textContent = "No saved sessions yet. Choose create to start one.";
-      questionList.innerHTML = "";
-      return;
-    }
-
-    attachSelectedSession(existingSessionSelect.value || selectedSessionId || sessions[0].sessionId);
+    detachSelectedSessionListener();
+    state = sessions.find((session) => session.sessionId === selectedSessionId) || null;
+    updateView();
   }
 
   sessionsRef.on("value", (snapshot) => {
     sessions = normalizeSessionsForList(snapshot.val());
-    renderSessionOptions();
-    applyAdminMode();
+
+    if (selectedSessionId && !sessions.some((session) => session.sessionId === selectedSessionId)) {
+      selectedSessionId = "";
+      state = null;
+      detachSelectedSessionListener();
+    } else if (mode === "delete" && selectedSessionId) {
+      state = sessions.find((session) => session.sessionId === selectedSessionId) || state;
+    }
+
+    updateView();
   });
 
-  adminAction.addEventListener("change", applyAdminMode);
-
-  existingSessionSelect.addEventListener("change", () => {
-    attachSelectedSession(existingSessionSelect.value);
-  });
-
-  if (deleteSessionSelect) {
-    deleteSessionSelect.addEventListener("change", () => {
-      selectedSessionId = deleteSessionSelect.value;
-      const session = sessions.find((item) => item.sessionId === selectedSessionId);
-      sessionInput.value = session ? session.sessionName : "";
-      activeSessionSummary.textContent = session
-        ? `Ready to delete "${session.sessionName}" and its ${session.questions.length} question${session.questions.length === 1 ? "" : "s"}.`
-        : "Choose a session to delete.";
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setMode(button.dataset.sessionMode || "create");
     });
-  }
+  });
+
+  sessionCardList.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-session-id]");
+    if (!button) return;
+    selectSession(button.dataset.sessionId);
+  });
 
   saveButton.addEventListener("click", async () => {
-    const mode = adminAction.value;
+    if (mode === "delete") {
+      if (!state || !selectedSessionId) {
+        setStatus("session-save-status", "Choose a session to delete.");
+        return;
+      }
+
+      if (!window.confirm(`Delete "${state.sessionName}" and all of its questions? This cannot be undone.`)) {
+        return;
+      }
+
+      saveButton.disabled = true;
+      const deletedName = state.sessionName;
+      await deleteSession(selectedSessionId);
+
+      if (activeSessionId === selectedSessionId) {
+        localStorage.removeItem(CURRENT_SESSION_KEY);
+        activeSessionId = DEFAULT_SESSION_ID;
+        sessionRef = sessionRefFor(activeSessionId);
+      }
+
+      selectedSessionId = "";
+      state = null;
+      resetQuestionForm();
+      updateView();
+      setStatus("session-save-status", `Deleted "${deletedName}".`);
+      saveButton.disabled = false;
+      return;
+    }
+
     const nextName = sessionInput.value.trim();
 
     if (!nextName) {
@@ -551,8 +627,7 @@ function renderMissionControl() {
       await saveState(newState);
       setActiveSession(newSessionId);
       selectedSessionId = newSessionId;
-      adminAction.value = "edit";
-      existingSessionSelect.value = newSessionId;
+      mode = "edit";
       setStatus("session-save-status", `Created "${nextName}". Add questions when ready.`);
       resetQuestionForm();
       attachSelectedSession(newSessionId);
@@ -570,38 +645,9 @@ function renderMissionControl() {
     saveButton.disabled = false;
   });
 
-  deleteButton.addEventListener("click", async () => {
-    const sessionToDelete = deleteSessionSelect ? deleteSessionSelect.value : existingSessionSelect.value;
-    const session = sessions.find((item) => item.sessionId === sessionToDelete);
-
-    if (!sessionToDelete || !session) {
-      setStatus("session-save-status", "Choose a session to delete.");
-      return;
-    }
-
-    if (!window.confirm(`Delete "${session.sessionName}" and all of its questions? This cannot be undone.`)) {
-      return;
-    }
-
-    deleteButton.disabled = true;
-    await deleteSession(sessionToDelete);
-
-    if (activeSessionId === sessionToDelete) {
-      localStorage.removeItem(CURRENT_SESSION_KEY);
-      activeSessionId = DEFAULT_SESSION_ID;
-      sessionRef = sessionRefFor(activeSessionId);
-    }
-
-    state = null;
-    resetQuestionForm();
-    setQuestionPanelsEnabled(false);
-    setStatus("session-save-status", `Deleted "${session.sessionName}".`);
-    deleteButton.disabled = false;
-  });
-
   addButton.addEventListener("click", async () => {
-    if (!state) {
-      setStatus("question-save-status", "Create or select a session first.");
+    if (!state || mode !== "edit") {
+      setStatus("question-save-status", "Choose a session to edit first.");
       return;
     }
 
@@ -653,7 +699,7 @@ function renderMissionControl() {
 
   questionList.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
-    if (!button || !state) return;
+    if (!button || !state || mode !== "edit") return;
 
     const index = Number(button.dataset.index);
     const action = button.dataset.action;
@@ -710,9 +756,7 @@ function renderMissionControl() {
     }
   });
 
-  adminAction.value = "create";
-  setQuestionPanelsEnabled(false);
-  updateSessionLinks(activeSessionId);
+  setMode("create", { keepSelection: false });
 }
 
 function renderVoteView() {
@@ -775,7 +819,7 @@ function renderVoteView() {
       if (isClosed) {
         return `
           <button class="vote-option is-closed ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button" disabled>
-            <span>${escapeHtml(option)}${isSelected ? " ✓" : ""}</span>
+            <span>${escapeHtml(option)}${isSelected ? " (selected)" : ""}</span>
             <span class="vote-result">
               <span class="vote-result-line">
                 <small>${count} votes</small>
@@ -791,7 +835,7 @@ function renderVoteView() {
 
       return `
         <button class="vote-option ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button">
-          <span>${escapeHtml(option)}${isSelected ? " ✓" : ""}</span>
+          <span>${escapeHtml(option)}${isSelected ? " (selected)" : ""}</span>
         </button>
       `;
     }).join("");
@@ -1000,7 +1044,7 @@ function renderSlideView() {
     const typeLabel = question.type === "multi" ? "MULTI-SELECT" : "SINGLE-SELECT";
 
     questionEl.textContent = question.text;
-    statusEl.textContent = `${typeLabel} · ${question.status.toUpperCase()} · ${total} votes`;
+    statusEl.textContent = `${typeLabel} | ${question.status.toUpperCase()} | ${total} votes`;
 
     resultsEl.innerHTML = question.options.map((option, index) => {
       const count = Number(question.votes[index] || 0);
@@ -1009,7 +1053,7 @@ function renderSlideView() {
       return `
         <div class="card" style="margin-top: 14px;">
           <strong>${escapeHtml(option)}</strong>
-          <span>${count} votes · ${percent}%</span>
+          <span>${count} votes | ${percent}%</span>
           <div style="height: 14px; background: #e5e7eb; border-radius: 999px; margin-top: 10px; overflow: hidden;">
             <div style="height: 100%; width: ${percent}%; background: #2563eb;"></div>
           </div>
@@ -1103,7 +1147,7 @@ function showFirebaseError(error) {
   );
 }
 
-if (document.getElementById("session-admin-action")) {
+if (document.getElementById("session-card-list")) {
   renderMissionControl();
 }
 
