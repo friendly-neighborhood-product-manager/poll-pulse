@@ -193,6 +193,17 @@ textarea:focus {
   display: inline-flex;
 }
 
+.session-admin-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin-top: 18px;
+}
+
+.session-admin-grid label {
+  margin-top: 0;
+}
+
 .card-grid {
   display: grid;
   gap: 16px;
@@ -372,15 +383,17 @@ textarea:focus {
 
 .slide-page {
   max-width: 1320px;
+  padding: 28px 18px;
 }
 
 .slide-panel {
-  min-height: calc(100vh - 150px);
+  min-height: calc(100vh - 120px);
 }
 
 .slide-topbar,
 .slide-controls,
 .slide-layout,
+.slide-primary-actions,
 .timer-group,
 .question-nav {
   display: flex;
@@ -397,6 +410,12 @@ textarea:focus {
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 30px;
+}
+
+.slide-primary-actions,
+.timer-group,
+.question-nav {
+  flex-wrap: wrap;
 }
 
 .countdown {
@@ -419,13 +438,18 @@ textarea:focus {
   align-items: start;
   display: grid;
   gap: 28px;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 240px);
+}
+
+.slide-main {
+  min-width: 0;
 }
 
 .slide-layout h1 {
-  font-size: clamp(36px, 5vw, 72px);
+  font-size: clamp(34px, 5vw, 72px);
   line-height: 1.02;
   margin-bottom: 28px;
+  overflow-wrap: anywhere;
 }
 
 .qr-panel {
@@ -477,14 +501,34 @@ textarea:focus {
     flex-direction: column;
   }
 
+  .page {
+    padding: 24px 14px;
+  }
+
   .hero,
   .card-grid,
+  .session-admin-grid,
   .slide-layout {
     grid-template-columns: 1fr;
   }
 
   .panel {
-    padding: 24px;
+    padding: 22px;
+  }
+
+  .form-actions,
+  .form-actions .button,
+  .form-actions a.button {
+    width: 100%;
+  }
+
+  .slide-page {
+    padding: 12px;
+  }
+
+  .slide-panel {
+    min-height: auto;
+    padding: 16px;
   }
 
   .slide-topbar {
@@ -492,7 +536,19 @@ textarea:focus {
     flex-direction: column;
   }
 
-  .slide-controls,
+  .countdown {
+    border-radius: 8px;
+    font-size: 16px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .slide-controls {
+    display: grid;
+    gap: 14px;
+  }
+
+  .slide-primary-actions,
   .timer-group,
   .question-nav {
     display: grid;
@@ -500,11 +556,37 @@ textarea:focus {
     width: 100%;
   }
 
-  .slide-controls .button {
+  .slide-primary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .slide-controls .button,
+  .timer-group .button,
+  .question-nav .button {
+    min-height: 44px;
     width: 100%;
+  }
+
+  .slide-layout {
+    gap: 18px;
+  }
+
+  .slide-layout h1 {
+    font-size: clamp(30px, 10vw, 44px);
+    margin-bottom: 18px;
   }
 
   .qr-panel {
     order: -1;
+    padding: 14px;
+  }
+
+  .qr-code {
+    margin: 0 auto;
+    max-width: 220px;
+  }
+
+  #slide-results .card {
+    padding: 18px;
   }
 }
