@@ -1,4 +1,4 @@
-const POLLPULSE_VERSION = "12";
+const POLLPULSE_VERSION = "13";
 const POLLPULSE_SESSIONS_PATH = "pollpulse/sessions";
 const DEFAULT_SESSION_ID = "demo";
 const CURRENT_SESSION_KEY = "pollpulse-current-session-id";
@@ -819,7 +819,7 @@ function renderVoteView() {
       if (isClosed) {
         return `
           <button class="vote-option is-closed ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button" disabled>
-            <span>${escapeHtml(option)}${isSelected ? " (selected)" : ""}</span>
+            <span>${escapeHtml(option)}</span>
             <span class="vote-result">
               <span class="vote-result-line">
                 <small>${count} votes</small>
@@ -835,7 +835,7 @@ function renderVoteView() {
 
       return `
         <button class="vote-option ${isSelected ? "is-selected" : ""}" data-vote-index="${index}" type="button">
-          <span>${escapeHtml(option)}${isSelected ? " (selected)" : ""}</span>
+          <span>${escapeHtml(option)}</span>
         </button>
       `;
     }).join("");
@@ -878,7 +878,7 @@ function renderVoteView() {
 
     if (isClosed) {
       messageEl.textContent = selectedIndexes.length
-        ? "Voting is closed. Your selected option is highlighted."
+        ? "Voting is closed. Your vote is highlighted."
         : "Voting is closed. Results are shown below.";
     } else {
       messageEl.textContent = selectedIndexes.length ? "Your current vote is saved." : "";
@@ -920,7 +920,7 @@ function renderVoteView() {
 
     await saveState(state);
     messageEl.textContent = question.type === "multi"
-      ? "Selection updated."
+      ? "Votes updated."
       : "Vote updated.";
   });
 }
