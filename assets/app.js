@@ -1,4 +1,4 @@
-const POLLPULSE_VERSION = "10";
+const POLLPULSE_VERSION = "11";
 const POLLPULSE_SESSIONS_PATH = "pollpulse/sessions";
 const DEFAULT_SESSION_ID = "demo";
 const CURRENT_SESSION_KEY = "pollpulse-current-session-id";
@@ -201,7 +201,7 @@ function sessionUrl(pageName, sessionId = activeSessionId, includeTimestamp = fa
 }
 
 function currentVoteUrl() {
-  return sessionUrl("vote.html", activeSessionId, true);
+  return sessionUrl("vote.html", activeSessionId, false);
 }
 
 function currentSlideUrl() {
@@ -305,6 +305,8 @@ function renderMissionControl() {
   const adminAction = document.getElementById("session-admin-action");
   const existingSessionField = document.getElementById("existing-session-field");
   const existingSessionSelect = document.getElementById("existing-session-select");
+  const deleteSessionField = document.getElementById("delete-session-field");
+  const deleteSessionSelect = document.getElementById("delete-session-select");
   const sessionInput = document.getElementById("session-name");
   const activeSessionSummary = document.getElementById("active-session-summary");
   const questionEditorPanel = document.getElementById("question-editor-panel");
@@ -402,11 +404,19 @@ function renderMissionControl() {
     if (!sessions.length) {
       existingSessionSelect.innerHTML = `<option value="">No saved sessions yet</option>`;
       existingSessionSelect.disabled = true;
+      if (deleteSessionSelect) {
+        deleteSessionSelect.innerHTML = `<option value="">No saved sessions yet</option>`;
+        deleteSessionSelect.disabled = true;
+      }
       return;
     }
 
     existingSessionSelect.disabled = false;
-    existingSessionSelect.innerHTML = sessions.map((session) => {
+    if (deleteSessionSelect) {
+      deleteSessionSelect.disabled = false;
+    }
+
+    const optionsHtml = sessions.map((session) => {
       const questionCount = session.questions.length;
       return `
         <option value="${escapeHtml(session.sessionId)}">
@@ -415,11 +425,19 @@ function renderMissionControl() {
       `;
     }).join("");
 
+    existingSessionSelect.innerHTML = optionsHtml;
+    if (deleteSessionSelect) {
+      deleteSessionSelect.innerHTML = optionsHtml;
+    }
+
     if (!sessions.some((session) => session.sessionId === selectedSessionId)) {
       selectedSessionId = sessions[0].sessionId;
     }
 
     existingSessionSelect.value = selectedSessionId;
+    if (deleteSessionSelect) {
+      deleteSessionSelect.value = selectedSessionId;
+    }
   }
 
   function detachSelectedSessionListener() {
@@ -459,15 +477,20 @@ function renderMissionControl() {
     const mode = adminAction.value;
     const hasSessions = sessions.length > 0;
 
-    existingSessionField.hidden = mode === "create";
+    existingSessionField.hidden = mode !== "edit";
+    if (deleteSessionField) {
+      deleteSessionField.hidden = mode !== "delete";
+    }
     deleteButton.hidden = mode !== "delete";
     saveButton.hidden = mode === "delete";
     saveButton.textContent = mode === "create" ? "Create Session" : "Save Session";
+    sessionInput.disabled = mode === "delete";
 
     if (mode === "create") {
       detachSelectedSessionListener();
       state = null;
       sessionInput.value = "";
+      sessionInput.disabled = false;
       setQuestionPanelsEnabled(false);
       activeSessionSummary.textContent = "Name your new session, then create it. New sessions start with no questions.";
       questionList.innerHTML = "";
@@ -499,6 +522,17 @@ function renderMissionControl() {
     attachSelectedSession(existingSessionSelect.value);
   });
 
+  if (deleteSessionSelect) {
+    deleteSessionSelect.addEventListener("change", () => {
+      selectedSessionId = deleteSessionSelect.value;
+      const session = sessions.find((item) => item.sessionId === selectedSessionId);
+      sessionInput.value = session ? session.sessionName : "";
+      activeSessionSummary.textContent = session
+        ? `Ready to delete "${session.sessionName}" and its ${session.questions.length} question${session.questions.length === 1 ? "" : "s"}.`
+        : "Choose a session to delete.";
+    });
+  }
+
   saveButton.addEventListener("click", async () => {
     const mode = adminAction.value;
     const nextName = sessionInput.value.trim();
@@ -518,8 +552,15 @@ function renderMissionControl() {
       setActiveSession(newSessionId);
       selectedSessionId = newSessionId;
       adminAction.value = "edit";
+      existingSessionSelect.value = newSessionId;
       setStatus("session-save-status", `Created "${nextName}". Add questions when ready.`);
       resetQuestionForm();
+      attachSelectedSession(newSessionId);
+
+      window.setTimeout(() => {
+        questionEditorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        questionText.focus();
+      }, 350);
     } else if (state) {
       state.sessionName = nextName;
       await saveState(state);
@@ -530,7 +571,7 @@ function renderMissionControl() {
   });
 
   deleteButton.addEventListener("click", async () => {
-    const sessionToDelete = existingSessionSelect.value;
+    const sessionToDelete = deleteSessionSelect ? deleteSessionSelect.value : existingSessionSelect.value;
     const session = sessions.find((item) => item.sessionId === sessionToDelete);
 
     if (!sessionToDelete || !session) {
@@ -874,7 +915,10 @@ function renderSlideView() {
     }
 
     if (qrEl) {
-      qrEl.innerHTML = `<img src="${qrUrl}" width="180" height="180" alt="QR code for PollPulse vote page">`;
+      if (qrEl.dataset.qrUrl !== qrUrl) {
+        qrEl.dataset.qrUrl = qrUrl;
+        qrEl.innerHTML = `<img src="${qrUrl}" width="180" height="180" alt="QR code for PollPulse vote page">`;
+      }
     }
   }
 
