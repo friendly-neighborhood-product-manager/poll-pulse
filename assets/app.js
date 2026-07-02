@@ -1,4 +1,4 @@
-const POLLPULSE_VERSION = "13";
+const POLLPULSE_VERSION = "14";
 const POLLPULSE_SESSIONS_PATH = "pollpulse/sessions";
 const DEFAULT_SESSION_ID = "demo";
 const CURRENT_SESSION_KEY = "pollpulse-current-session-id";
@@ -22,7 +22,7 @@ const sessionsRef = database.ref(POLLPULSE_SESSIONS_PATH);
 let activeSessionId = sessionIdFromUrl() || localStorage.getItem(CURRENT_SESSION_KEY) || DEFAULT_SESSION_ID;
 let sessionRef = sessionRefFor(activeSessionId);
 
-function blankState(sessionId = activeSessionId, sessionName = "Untitled Session") {
+function blankState(sessionId = activeSessionId, sessionName = "") {
   const now = Date.now();
 
   return {
@@ -99,6 +99,19 @@ function decodeQuestions(rawQuestions) {
   return [];
 }
 
+function normalizedSessionName(value, sessionId, questions = []) {
+  const name = typeof value === "string" ? value.trim() : "";
+  const isGeneratedDefault = cleanSessionId(sessionId) === DEFAULT_SESSION_ID
+    && name === "Untitled Session"
+    && !questions.length;
+
+  return isGeneratedDefault ? "" : name;
+}
+
+function isSaveableSession(state) {
+  return Boolean(state && state.sessionName && state.sessionName.trim());
+}
+
 function normalizeState(value, fallbackSessionId = activeSessionId) {
   const sessionId = cleanSessionId(value && value.sessionId) || cleanSessionId(fallbackSessionId) || DEFAULT_SESSION_ID;
   const fallback = blankState(sessionId);
@@ -107,9 +120,7 @@ function normalizeState(value, fallbackSessionId = activeSessionId) {
 
   return {
     sessionId,
-    sessionName: typeof state.sessionName === "string" && state.sessionName.trim()
-      ? state.sessionName
-      : fallback.sessionName,
+    sessionName: normalizedSessionName(state.sessionName, sessionId, questions),
     activeQuestionIndex: Number.isInteger(state.activeQuestionIndex) && questions.length
       ? Math.max(0, Math.min(state.activeQuestionIndex, questions.length - 1))
       : 0,
@@ -153,6 +164,11 @@ function serializeState(state) {
 
 function saveState(state) {
   const nextState = serializeState(state);
+
+  if (!nextState.sessionName.trim()) {
+    return Promise.reject(new Error("Session name is required."));
+  }
+
   return sessionRefFor(nextState.sessionId).set(nextState);
 }
 
@@ -168,13 +184,6 @@ async function loadState(sessionId = activeSessionId) {
 
 async function ensureActiveSession() {
   const snapshot = await sessionRef.get();
-
-  if (!snapshot.exists()) {
-    const state = blankState(activeSessionId, "Untitled Session");
-    await saveState(state);
-    return state;
-  }
-
   return normalizeState(snapshot.val(), activeSessionId);
 }
 
@@ -282,6 +291,7 @@ function normalizeSessionsForList(value) {
   return Object.entries(value || {})
     .filter(([, session]) => session && typeof session === "object")
     .map(([sessionId, session]) => normalizeState(session, sessionId))
+    .filter(isSaveableSession)
     .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
 }
 
@@ -309,6 +319,7 @@ function renderMissionControl() {
   const sessionCardList = document.getElementById("session-card-list");
   const sessionNameField = document.getElementById("session-name-field");
   const sessionInput = document.getElementById("session-name");
+  const activeSessionPanel = document.getElementById("active-session-panel");
   const activeSessionSummary = document.getElementById("active-session-summary");
   const questionEditorPanel = document.getElementById("question-editor-panel");
   const questionHistoryPanel = document.getElementById("question-history-panel");
@@ -473,6 +484,12 @@ function renderMissionControl() {
     renderSessionCards();
 
     const hasSelectedSession = Boolean(state && selectedSessionId);
+    const showActiveSession = mode === "edit" && hasSelectedSession;
+
+    if (activeSessionPanel) {
+      activeSessionPanel.hidden = !showActiveSession;
+    }
+
     sessionNameField.hidden = mode === "delete" || (mode === "edit" && !hasSelectedSession);
     sessionInput.disabled = mode === "delete";
     setQuestionPanelsEnabled(mode === "edit" && hasSelectedSession);
