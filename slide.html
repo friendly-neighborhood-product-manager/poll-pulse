@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Slide</title>
-  <link rel="stylesheet" href="assets/styles.css?v=9">
+  <link rel="stylesheet" href="assets/styles.css?v=10">
 </head>
 <body>
   <div class="app-shell">
@@ -12,7 +12,7 @@
       <a class="brand" href="index.html">Poll<span>Pulse</span></a>
       <nav class="nav-links" aria-label="Primary">
         <a href="mission-control.html">Mission Control</a>
-        <a class="secondary" href="vote.html?v=9">Vote</a>
+        <a class="secondary" href="vote.html?v=10">Vote</a>
       </nav>
     </header>
 
@@ -27,7 +27,11 @@
         </div>
 
         <div class="slide-controls">
-          <button class="button" id="start-voting" type="button">Start Voting</button>
+          <div class="slide-primary-actions">
+            <button class="button" id="start-voting" type="button">Start Voting</button>
+            <button class="button danger" id="stop-voting" type="button">Stop Now</button>
+            <button class="button secondary" id="clear-votes" type="button">Clear Votes</button>
+          </div>
 
           <div class="timer-group" aria-label="Timer stop controls">
             <button class="button secondary" data-timer="15" type="button">15s</button>
@@ -36,19 +40,16 @@
             <button class="button secondary" data-timer="60" type="button">60s</button>
           </div>
 
-          <button class="button danger" id="stop-voting" type="button">Stop Now</button>
-          <button class="button secondary" id="clear-votes" type="button">Clear Votes</button>
-
           <div class="question-nav" aria-label="Question navigation">
-            <button class="button secondary" id="first-question" type="button" title="First question">|◀</button>
-            <button class="button secondary" id="previous-question" type="button" title="Previous question">◀</button>
-            <button class="button secondary" id="next-question" type="button" title="Next question">▶</button>
-            <button class="button secondary" id="last-question" type="button" title="Last question">▶|</button>
+            <button class="button secondary" id="first-question" type="button" title="First question">First</button>
+            <button class="button secondary" id="previous-question" type="button" title="Previous question">Prev</button>
+            <button class="button secondary" id="next-question" type="button" title="Next question">Next</button>
+            <button class="button secondary" id="last-question" type="button" title="Last question">Last</button>
           </div>
         </div>
 
         <div class="slide-layout">
-          <section>
+          <section class="slide-main">
             <h1 id="slide-question">Loading question...</h1>
             <div id="slide-results"></div>
           </section>
@@ -56,7 +57,7 @@
           <aside class="qr-panel">
             <strong>Vote</strong>
             <div id="slide-qr" class="qr-code"></div>
-            <a id="slide-vote-link" href="vote.html?v=9" target="_blank" rel="noopener">Open Vote View</a>
+            <a id="slide-vote-link" href="vote.html?v=10" target="_blank" rel="noopener">Open Vote View</a>
           </aside>
         </div>
       </section>
@@ -65,6 +66,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=9"></script>
+  <script src="assets/app.js?v=10"></script>
 </body>
 </html>
