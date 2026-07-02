@@ -752,12 +752,12 @@ textarea:focus {
 .session-mode-buttons .session-mode-button {
   align-items: center;
   display: flex;
-  font-size: 15px;
-  font-weight: 850;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
   justify-content: center;
-  line-height: 1.2;
+  line-height: 1.25;
   min-height: 56px;
   padding: 0 18px;
   text-align: center;
-  white-space: normal;
 }
