@@ -2,6 +2,8 @@
 
 PollPulse is a static GitHub Pages app with a Firebase Realtime Database backend. The app has no Oracle branding, no APEX dependency, and no voter authentication.
 
+![PollPulse Architecture](pollpulse-architecture.png)
+
 ```mermaid
 flowchart LR
   USER["Presenter / Admin"] --> MC["Mission Control<br/>mission-control.html"]
