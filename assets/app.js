@@ -1,6 +1,8 @@
-const POLLPULSE_SESSION_ID = "demo";
-const POLLPULSE_PATH = `pollpulse/sessions/${POLLPULSE_SESSION_ID}`;
-const VOTER_ID_KEY = "pollpulse-voter-id";
+const POLLPULSE_VERSION = "10";
+const POLLPULSE_SESSIONS_PATH = "pollpulse/sessions";
+const DEFAULT_SESSION_ID = "demo";
+const CURRENT_SESSION_KEY = "pollpulse-current-session-id";
+const VOTER_ID_PREFIX = "pollpulse-voter-id";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDj5h4-1t5CzZ1JalkMhuUFWdWrIK3DUlo",
@@ -15,43 +17,105 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 
 const database = firebase.database();
-const sessionRef = database.ref(POLLPULSE_PATH);
+const sessionsRef = database.ref(POLLPULSE_SESSIONS_PATH);
 
-function defaultState() {
+let activeSessionId = sessionIdFromUrl() || localStorage.getItem(CURRENT_SESSION_KEY) || DEFAULT_SESSION_ID;
+let sessionRef = sessionRefFor(activeSessionId);
+
+function blankState(sessionId = activeSessionId, sessionName = "Untitled Session") {
+  const now = Date.now();
+
   return {
-    sessionName: "Product Team Check-in",
+    sessionId,
+    sessionName,
     activeQuestionIndex: 0,
-    updatedAt: Date.now(),
-    questions: [
-      {
-        text: "What should we prioritize next?",
-        type: "single",
-        options: ["Speed", "Reliability", "Design polish"],
-        votes: [0, 0, 0],
-        voterSelections: {},
-        status: "open",
-        closesAt: null
-      }
-    ]
+    createdAt: now,
+    updatedAt: now,
+    questions: []
   };
 }
 
-function normalizeState(value) {
-  const fallback = defaultState();
+function sessionIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return cleanSessionId(params.get("session"));
+}
+
+function cleanSessionId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 80);
+}
+
+function slugify(value) {
+  const slug = String(value || "session")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 42);
+
+  return slug || "session";
+}
+
+function createSessionId(sessionName) {
+  return `${slugify(sessionName)}-${Date.now().toString(36)}`;
+}
+
+function sessionRefFor(sessionId) {
+  return database.ref(`${POLLPULSE_SESSIONS_PATH}/${cleanSessionId(sessionId) || DEFAULT_SESSION_ID}`);
+}
+
+function setActiveSession(sessionId) {
+  activeSessionId = cleanSessionId(sessionId) || DEFAULT_SESSION_ID;
+  localStorage.setItem(CURRENT_SESSION_KEY, activeSessionId);
+  sessionRef = sessionRefFor(activeSessionId);
+}
+
+function encodeQuestions(questions) {
+  return questions.length ? questions : { _empty: true };
+}
+
+function decodeQuestions(rawQuestions) {
+  if (Array.isArray(rawQuestions)) {
+    return rawQuestions
+      .filter((question) => question && typeof question === "object")
+      .map(normalizeQuestion);
+  }
+
+  if (rawQuestions && typeof rawQuestions === "object") {
+    return Object.entries(rawQuestions)
+      .filter(([key, question]) => !String(key).startsWith("_") && question && typeof question === "object")
+      .sort(([aKey, aQuestion], [bKey, bQuestion]) => {
+        const aOrder = Number(aQuestion.order ?? aKey);
+        const bOrder = Number(bQuestion.order ?? bKey);
+        return Number.isFinite(aOrder) && Number.isFinite(bOrder)
+          ? aOrder - bOrder
+          : String(aKey).localeCompare(String(bKey));
+      })
+      .map(([, question]) => normalizeQuestion(question));
+  }
+
+  return [];
+}
+
+function normalizeState(value, fallbackSessionId = activeSessionId) {
+  const sessionId = cleanSessionId(value && value.sessionId) || cleanSessionId(fallbackSessionId) || DEFAULT_SESSION_ID;
+  const fallback = blankState(sessionId);
   const state = value && typeof value === "object" ? value : fallback;
-  const questions = Array.isArray(state.questions)
-    ? state.questions
-    : Object.values(state.questions || {});
+  const questions = decodeQuestions(state.questions);
 
   return {
+    sessionId,
     sessionName: typeof state.sessionName === "string" && state.sessionName.trim()
       ? state.sessionName
       : fallback.sessionName,
-    activeQuestionIndex: Number.isInteger(state.activeQuestionIndex)
-      ? Math.max(0, Math.min(state.activeQuestionIndex, Math.max(questions.length - 1, 0)))
+    activeQuestionIndex: Number.isInteger(state.activeQuestionIndex) && questions.length
+      ? Math.max(0, Math.min(state.activeQuestionIndex, questions.length - 1))
       : 0,
+    createdAt: Number(state.createdAt || state.updatedAt || Date.now()),
     updatedAt: Number(state.updatedAt || Date.now()),
-    questions: questions.length ? questions.map(normalizeQuestion) : fallback.questions
+    questions
   };
 }
 
@@ -77,10 +141,46 @@ function normalizeQuestion(question) {
   };
 }
 
-function saveState(state) {
-  return sessionRef.set({
-    ...state,
+function serializeState(state) {
+  const normalized = normalizeState(state, state.sessionId);
+
+  return {
+    ...normalized,
+    questions: encodeQuestions(normalized.questions),
     updatedAt: Date.now()
+  };
+}
+
+function saveState(state) {
+  const nextState = serializeState(state);
+  return sessionRefFor(nextState.sessionId).set(nextState);
+}
+
+function deleteSession(sessionId) {
+  return sessionRefFor(sessionId).remove();
+}
+
+async function loadState(sessionId = activeSessionId) {
+  const cleanId = cleanSessionId(sessionId) || DEFAULT_SESSION_ID;
+  const snapshot = await sessionRefFor(cleanId).get();
+  return normalizeState(snapshot.val(), cleanId);
+}
+
+async function ensureActiveSession() {
+  const snapshot = await sessionRef.get();
+
+  if (!snapshot.exists()) {
+    const state = blankState(activeSessionId, "Untitled Session");
+    await saveState(state);
+    return state;
+  }
+
+  return normalizeState(snapshot.val(), activeSessionId);
+}
+
+function onActiveSessionChange(callback) {
+  sessionRef.on("value", (snapshot) => {
+    callback(normalizeState(snapshot.val(), activeSessionId));
   });
 }
 
@@ -88,19 +188,33 @@ function activeQuestion(state) {
   return state.questions[state.activeQuestionIndex] || null;
 }
 
-function currentVoteUrl() {
-  const url = new URL("vote.html", window.location.href);
-  url.searchParams.set("v", "9");
-  url.searchParams.set("t", String(Date.now()));
+function sessionUrl(pageName, sessionId = activeSessionId, includeTimestamp = false) {
+  const url = new URL(pageName, window.location.href);
+  url.searchParams.set("session", sessionId);
+  url.searchParams.set("v", POLLPULSE_VERSION);
+
+  if (includeTimestamp) {
+    url.searchParams.set("t", String(Date.now()));
+  }
+
   return url.href;
 }
 
+function currentVoteUrl() {
+  return sessionUrl("vote.html", activeSessionId, true);
+}
+
+function currentSlideUrl() {
+  return sessionUrl("slide.html", activeSessionId, false);
+}
+
 function getVoterId() {
-  let voterId = sessionStorage.getItem(VOTER_ID_KEY);
+  const key = `${VOTER_ID_PREFIX}:${activeSessionId}`;
+  let voterId = sessionStorage.getItem(key);
 
   if (!voterId) {
     voterId = `voter_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    sessionStorage.setItem(VOTER_ID_KEY, voterId);
+    sessionStorage.setItem(key, voterId);
   }
 
   return voterId;
@@ -120,24 +234,7 @@ function setStatus(id, message) {
   status._pollpulseTimer = window.setTimeout(() => {
     status.textContent = "";
     status.classList.remove("is-visible");
-  }, 2400);
-}
-
-async function ensureSession() {
-  const snapshot = await sessionRef.get();
-
-  if (!snapshot.exists()) {
-    await saveState(defaultState());
-    return defaultState();
-  }
-
-  return normalizeState(snapshot.val());
-}
-
-function onSessionChange(callback) {
-  sessionRef.on("value", (snapshot) => {
-    callback(normalizeState(snapshot.val()));
-  });
+  }, 2600);
 }
 
 function closeExpiredQuestion(state) {
@@ -181,8 +278,37 @@ function totalVotesFor(question) {
   return question.votes.reduce((sum, vote) => sum + Number(vote || 0), 0);
 }
 
+function normalizeSessionsForList(value) {
+  return Object.entries(value || {})
+    .filter(([, session]) => session && typeof session === "object")
+    .map(([sessionId, session]) => normalizeState(session, sessionId))
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+}
+
+function updateSessionLinks(sessionId) {
+  const links = [
+    ["mission-vote-link", sessionUrl("vote.html", sessionId, false)],
+    ["mission-slide-link", sessionUrl("slide.html", sessionId, false)],
+    ["active-vote-link", sessionUrl("vote.html", sessionId, false)],
+    ["active-slide-link", sessionUrl("slide.html", sessionId, false)]
+  ];
+
+  links.forEach(([id, href]) => {
+    const link = document.getElementById(id);
+    if (link) {
+      link.href = href;
+    }
+  });
+}
+
 function renderMissionControl() {
+  const adminAction = document.getElementById("session-admin-action");
+  const existingSessionField = document.getElementById("existing-session-field");
+  const existingSessionSelect = document.getElementById("existing-session-select");
   const sessionInput = document.getElementById("session-name");
+  const activeSessionSummary = document.getElementById("active-session-summary");
+  const questionEditorPanel = document.getElementById("question-editor-panel");
+  const questionHistoryPanel = document.getElementById("question-history-panel");
   const questionFormTitle = document.getElementById("question-form-title");
   const editingQuestionIndex = document.getElementById("editing-question-index");
   const questionType = document.getElementById("question-type");
@@ -190,14 +316,18 @@ function renderMissionControl() {
   const questionOptions = document.getElementById("question-options");
   const questionList = document.getElementById("question-list");
   const saveButton = document.getElementById("save-session");
+  const deleteButton = document.getElementById("delete-session");
   const addButton = document.getElementById("add-question");
   const cancelEditButton = document.getElementById("cancel-edit");
 
-  if (!sessionInput || !questionList) {
+  if (!adminAction || !sessionInput || !questionList) {
     return;
   }
 
-  let state = defaultState();
+  let state = null;
+  let sessions = [];
+  let selectedSessionId = localStorage.getItem(CURRENT_SESSION_KEY) || "";
+  let selectedSessionListenerRef = null;
 
   function resetQuestionForm() {
     editingQuestionIndex.value = "";
@@ -209,7 +339,42 @@ function renderMissionControl() {
     questionType.value = "single";
   }
 
+  function setQuestionPanelsEnabled(enabled) {
+    questionEditorPanel.hidden = !enabled;
+    questionHistoryPanel.hidden = !enabled;
+  }
+
+  function renderActiveSessionSummary() {
+    if (!state) {
+      activeSessionSummary.textContent = "Create or select a session to start.";
+      updateSessionLinks(selectedSessionId || DEFAULT_SESSION_ID);
+      return;
+    }
+
+    const questionCount = state.questions.length;
+    const createdDate = state.createdAt ? new Date(state.createdAt).toLocaleString() : "Unknown";
+    activeSessionSummary.textContent = `${state.sessionName} · ${questionCount} question${questionCount === 1 ? "" : "s"} · created ${createdDate}`;
+    updateSessionLinks(state.sessionId);
+  }
+
   function drawQuestions() {
+    if (!state) {
+      questionList.innerHTML = "";
+      renderActiveSessionSummary();
+      return;
+    }
+
+    if (!state.questions.length) {
+      questionList.innerHTML = `
+        <div class="card" style="margin-top: 12px;">
+          <strong>No questions yet.</strong>
+          <span>Add the first question for this session when you are ready.</span>
+        </div>
+      `;
+      renderActiveSessionSummary();
+      return;
+    }
+
     questionList.innerHTML = state.questions.map((question, index) => {
       const voteTotal = totalVotesFor(question);
       const typeLabel = question.type === "multi" ? "multi-select" : "single-select";
@@ -229,35 +394,176 @@ function renderMissionControl() {
         </div>
       `;
     }).join("");
+
+    renderActiveSessionSummary();
   }
 
-  onSessionChange((nextState) => {
-    state = nextState;
-
-    if (document.activeElement !== sessionInput) {
-      sessionInput.value = state.sessionName || "";
+  function renderSessionOptions() {
+    if (!sessions.length) {
+      existingSessionSelect.innerHTML = `<option value="">No saved sessions yet</option>`;
+      existingSessionSelect.disabled = true;
+      return;
     }
 
-    drawQuestions();
+    existingSessionSelect.disabled = false;
+    existingSessionSelect.innerHTML = sessions.map((session) => {
+      const questionCount = session.questions.length;
+      return `
+        <option value="${escapeHtml(session.sessionId)}">
+          ${escapeHtml(session.sessionName)} (${questionCount} question${questionCount === 1 ? "" : "s"})
+        </option>
+      `;
+    }).join("");
+
+    if (!sessions.some((session) => session.sessionId === selectedSessionId)) {
+      selectedSessionId = sessions[0].sessionId;
+    }
+
+    existingSessionSelect.value = selectedSessionId;
+  }
+
+  function detachSelectedSessionListener() {
+    if (selectedSessionListenerRef) {
+      selectedSessionListenerRef.off();
+      selectedSessionListenerRef = null;
+    }
+  }
+
+  function attachSelectedSession(sessionId) {
+    detachSelectedSessionListener();
+    selectedSessionId = cleanSessionId(sessionId);
+
+    if (!selectedSessionId) {
+      state = null;
+      sessionInput.value = "";
+      setQuestionPanelsEnabled(false);
+      drawQuestions();
+      return;
+    }
+
+    setActiveSession(selectedSessionId);
+    selectedSessionListenerRef = sessionRefFor(selectedSessionId);
+    selectedSessionListenerRef.on("value", (snapshot) => {
+      state = snapshot.exists() ? normalizeState(snapshot.val(), selectedSessionId) : null;
+
+      if (state && document.activeElement !== sessionInput) {
+        sessionInput.value = state.sessionName || "";
+      }
+
+      setQuestionPanelsEnabled(Boolean(state) && adminAction.value !== "delete");
+      drawQuestions();
+    });
+  }
+
+  function applyAdminMode() {
+    const mode = adminAction.value;
+    const hasSessions = sessions.length > 0;
+
+    existingSessionField.hidden = mode === "create";
+    deleteButton.hidden = mode !== "delete";
+    saveButton.hidden = mode === "delete";
+    saveButton.textContent = mode === "create" ? "Create Session" : "Save Session";
+
+    if (mode === "create") {
+      detachSelectedSessionListener();
+      state = null;
+      sessionInput.value = "";
+      setQuestionPanelsEnabled(false);
+      activeSessionSummary.textContent = "Name your new session, then create it. New sessions start with no questions.";
+      questionList.innerHTML = "";
+      updateSessionLinks(activeSessionId);
+      return;
+    }
+
+    if (!hasSessions) {
+      state = null;
+      sessionInput.value = "";
+      setQuestionPanelsEnabled(false);
+      activeSessionSummary.textContent = "No saved sessions yet. Choose create to start one.";
+      questionList.innerHTML = "";
+      return;
+    }
+
+    attachSelectedSession(existingSessionSelect.value || selectedSessionId || sessions[0].sessionId);
+  }
+
+  sessionsRef.on("value", (snapshot) => {
+    sessions = normalizeSessionsForList(snapshot.val());
+    renderSessionOptions();
+    applyAdminMode();
+  });
+
+  adminAction.addEventListener("change", applyAdminMode);
+
+  existingSessionSelect.addEventListener("change", () => {
+    attachSelectedSession(existingSessionSelect.value);
   });
 
   saveButton.addEventListener("click", async () => {
-    const nextName = sessionInput.value.trim() || "Untitled Session";
+    const mode = adminAction.value;
+    const nextName = sessionInput.value.trim();
 
-    state.sessionName = nextName;
-    await saveState(state);
+    if (!nextName) {
+      setStatus("session-save-status", "Add a session name first.");
+      sessionInput.focus();
+      return;
+    }
 
-    saveButton.textContent = "Saved";
     saveButton.disabled = true;
-    setStatus("session-save-status", `Saved as "${nextName}".`);
 
-    window.setTimeout(() => {
-      saveButton.textContent = "Save Session";
-      saveButton.disabled = false;
-    }, 1200);
+    if (mode === "create") {
+      const newSessionId = createSessionId(nextName);
+      const newState = blankState(newSessionId, nextName);
+      await saveState(newState);
+      setActiveSession(newSessionId);
+      selectedSessionId = newSessionId;
+      adminAction.value = "edit";
+      setStatus("session-save-status", `Created "${nextName}". Add questions when ready.`);
+      resetQuestionForm();
+    } else if (state) {
+      state.sessionName = nextName;
+      await saveState(state);
+      setStatus("session-save-status", `Saved "${nextName}".`);
+    }
+
+    saveButton.disabled = false;
+  });
+
+  deleteButton.addEventListener("click", async () => {
+    const sessionToDelete = existingSessionSelect.value;
+    const session = sessions.find((item) => item.sessionId === sessionToDelete);
+
+    if (!sessionToDelete || !session) {
+      setStatus("session-save-status", "Choose a session to delete.");
+      return;
+    }
+
+    if (!window.confirm(`Delete "${session.sessionName}" and all of its questions? This cannot be undone.`)) {
+      return;
+    }
+
+    deleteButton.disabled = true;
+    await deleteSession(sessionToDelete);
+
+    if (activeSessionId === sessionToDelete) {
+      localStorage.removeItem(CURRENT_SESSION_KEY);
+      activeSessionId = DEFAULT_SESSION_ID;
+      sessionRef = sessionRefFor(activeSessionId);
+    }
+
+    state = null;
+    resetQuestionForm();
+    setQuestionPanelsEnabled(false);
+    setStatus("session-save-status", `Deleted "${session.sessionName}".`);
+    deleteButton.disabled = false;
   });
 
   addButton.addEventListener("click", async () => {
+    if (!state) {
+      setStatus("question-save-status", "Create or select a session first.");
+      return;
+    }
+
     const text = questionText.value.trim();
     const options = questionOptions.value
       .split(/\r?\n/)
@@ -306,10 +612,14 @@ function renderMissionControl() {
 
   questionList.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
-    if (!button) return;
+    if (!button || !state) return;
 
     const index = Number(button.dataset.index);
     const action = button.dataset.action;
+
+    if (!state.questions[index]) {
+      return;
+    }
 
     if (action === "activate") {
       state.activeQuestionIndex = index;
@@ -346,13 +656,11 @@ function renderMissionControl() {
       state.questions.splice(index, 1);
 
       if (!state.questions.length) {
-        state.questions = defaultState().questions;
-      }
-
-      state.activeQuestionIndex = Math.max(0, Math.min(state.activeQuestionIndex, state.questions.length - 1));
-
-      if (state.activeQuestionIndex >= index) {
+        state.activeQuestionIndex = 0;
+      } else if (state.activeQuestionIndex >= index) {
         state.activeQuestionIndex = Math.max(0, state.activeQuestionIndex - 1);
+      } else {
+        state.activeQuestionIndex = Math.max(0, Math.min(state.activeQuestionIndex, state.questions.length - 1));
       }
 
       resetQuestionForm();
@@ -360,6 +668,10 @@ function renderMissionControl() {
       await saveState(state);
     }
   });
+
+  adminAction.value = "create";
+  setQuestionPanelsEnabled(false);
+  updateSessionLinks(activeSessionId);
 }
 
 function renderVoteView() {
@@ -375,7 +687,7 @@ function renderVoteView() {
     return;
   }
 
-  let state = defaultState();
+  let state = blankState();
   let countdownTimer = null;
 
   function updateVoteCountdown(question) {
@@ -455,8 +767,10 @@ function renderVoteView() {
 
     if (!question) {
       questionEl.textContent = "No active question yet.";
+      typeEl.textContent = "Waiting for the presenter to add a question.";
       optionsEl.innerHTML = "";
-      if (statusEl) statusEl.textContent = "";
+      messageEl.textContent = "";
+      if (statusEl) statusEl.textContent = "Waiting";
       updateVoteCountdown(null);
       return;
     }
@@ -486,15 +800,14 @@ function renderVoteView() {
     }
   }
 
-  onSessionChange(draw);
+  onActiveSessionChange(draw);
 
   optionsEl.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-vote-index]");
     if (!button || button.disabled) return;
 
     const voteIndex = Number(button.dataset.voteIndex);
-    const snapshot = await sessionRef.get();
-    state = normalizeState(snapshot.val());
+    state = await loadState(activeSessionId);
     closeExpiredQuestion(state);
     const question = activeQuestion(state);
     const voterId = getVoterId();
@@ -548,7 +861,7 @@ function renderSlideView() {
     return;
   }
 
-  let state = defaultState();
+  let state = blankState();
   let countdownTimer = null;
 
   function renderQr() {
@@ -597,9 +910,27 @@ function renderSlideView() {
     countdownTimer = window.setInterval(tick, 1000);
   }
 
+  function setControlsEnabled(enabled) {
+    [
+      startButton,
+      stopButton,
+      clearVotesButton,
+      firstButton,
+      previousButton,
+      nextButton,
+      lastButton,
+      ...timerButtons
+    ].forEach((button) => {
+      if (button) {
+        button.disabled = !enabled;
+      }
+    });
+  }
+
   function draw(nextState) {
     state = nextState;
     closeExpiredQuestion(state);
+    renderQr();
 
     const question = activeQuestion(state);
 
@@ -607,11 +938,19 @@ function renderSlideView() {
 
     if (!question) {
       questionEl.textContent = "No active question yet.";
-      statusEl.textContent = "";
-      resultsEl.innerHTML = "";
+      statusEl.textContent = "Waiting for a question";
+      resultsEl.innerHTML = `
+        <div class="card" style="margin-top: 14px;">
+          <strong>This session has no questions yet.</strong>
+          <span>Add questions from Mission Control.</span>
+        </div>
+      `;
       updateCountdown(null);
+      setControlsEnabled(false);
       return;
     }
+
+    setControlsEnabled(true);
 
     const total = totalVotesFor(question);
     const typeLabel = question.type === "multi" ? "MULTI-SELECT" : "SINGLE-SELECT";
@@ -648,8 +987,7 @@ function renderSlideView() {
   }
 
   async function updateActiveQuestion(mutator) {
-    const snapshot = await sessionRef.get();
-    state = normalizeState(snapshot.val());
+    state = await loadState(activeSessionId);
     const question = activeQuestion(state);
 
     if (!question) {
@@ -702,7 +1040,7 @@ function renderSlideView() {
   lastButton.addEventListener("click", () => setActiveQuestion(state.questions.length - 1));
 
   renderQr();
-  onSessionChange(draw);
+  onActiveSessionChange(draw);
 }
 
 function escapeHtml(value) {
@@ -714,15 +1052,25 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-ensureSession()
-  .then(() => {
-    renderMissionControl();
-    renderVoteView();
-    renderSlideView();
-  })
-  .catch((error) => {
-    document.body.insertAdjacentHTML(
-      "afterbegin",
-      `<div style="background:#fee2e2;color:#7f1d1d;padding:12px 16px;font-weight:800;">Firebase error: ${escapeHtml(error.message)}</div>`
-    );
-  });
+function showFirebaseError(error) {
+  document.body.insertAdjacentHTML(
+    "afterbegin",
+    `<div style="background:#fee2e2;color:#7f1d1d;padding:12px 16px;font-weight:800;">Firebase error: ${escapeHtml(error.message)}</div>`
+  );
+}
+
+if (document.getElementById("session-admin-action")) {
+  renderMissionControl();
+}
+
+if (document.getElementById("vote-question")) {
+  ensureActiveSession()
+    .then(renderVoteView)
+    .catch(showFirebaseError);
+}
+
+if (document.getElementById("slide-question")) {
+  ensureActiveSession()
+    .then(renderSlideView)
+    .catch(showFirebaseError);
+}
