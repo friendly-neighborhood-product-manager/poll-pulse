@@ -153,6 +153,53 @@ textarea {
   width: 100%;
 }
 
+.select-shell {
+  display: grid;
+  position: relative;
+}
+
+.select-shell::after {
+  color: var(--muted);
+  content: "⌄";
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-54%);
+}
+
+.select-shell select {
+  appearance: none;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.03);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 750;
+  min-height: 50px;
+  padding: 13px 46px 13px 15px;
+}
+
+.select-shell select:hover {
+  border-color: #b8c2d3;
+}
+
+.select-shell select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+}
+
+.select-shell select:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: default;
+}
+
 textarea {
   min-height: 136px;
   resize: vertical;
@@ -164,7 +211,6 @@ textarea::placeholder {
 }
 
 input:focus,
-select:focus,
 textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
