@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PollPulse Mission Control</title>
-  <link rel="stylesheet" href="assets/styles.css?v=10">
+  <link rel="stylesheet" href="assets/styles.css?v=11">
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
       <a class="brand" href="index.html">Poll<span>Pulse</span></a>
       <nav class="nav-links" aria-label="Primary">
-        <a id="mission-vote-link" href="vote.html?v=10">Vote</a>
-        <a id="mission-slide-link" class="secondary" href="slide.html">Slide</a>
+        <a id="mission-vote-link" href="vote.html?v=11">Vote</a>
+        <a id="mission-slide-link" class="secondary" href="slide.html?v=11">Slide</a>
       </nav>
     </header>
 
@@ -23,19 +23,32 @@
 
         <div class="session-admin-grid">
           <label>
-            Admin action
-            <select id="session-admin-action">
-              <option value="create">Create a new session</option>
-              <option value="edit">Edit an existing session</option>
-              <option value="delete">Delete an existing session</option>
-            </select>
+            What would you like to do?
+            <span class="select-shell">
+              <select id="session-admin-action">
+                <option value="create">Create a new session</option>
+                <option value="edit">Edit an existing session</option>
+                <option value="delete">Delete an existing session</option>
+              </select>
+            </span>
           </label>
 
-          <label id="existing-session-field">
+          <label id="existing-session-field" hidden>
             Existing session
-            <select id="existing-session-select">
-              <option value="">Loading sessions...</option>
-            </select>
+            <span class="select-shell">
+              <select id="existing-session-select">
+                <option value="">Loading sessions...</option>
+              </select>
+            </span>
+          </label>
+
+          <label id="delete-session-field" hidden>
+            Session to delete
+            <span class="select-shell">
+              <select id="delete-session-select">
+                <option value="">Loading sessions...</option>
+              </select>
+            </span>
           </label>
         </div>
 
@@ -55,8 +68,8 @@
         <h2>Current Session</h2>
         <p id="active-session-summary">Create or select a session to start.</p>
         <div class="form-actions">
-          <a class="button secondary" id="active-slide-link" href="slide.html">Open Slide View</a>
-          <a class="button secondary" id="active-vote-link" href="vote.html?v=10">Open Vote View</a>
+          <a class="button secondary" id="active-slide-link" href="slide.html?v=11">Open Slide View</a>
+          <a class="button secondary" id="active-vote-link" href="vote.html?v=11">Open Vote View</a>
         </div>
       </section>
 
@@ -72,10 +85,12 @@
 
         <label>
           Answer type
-          <select id="question-type">
-            <option value="single">Single-select</option>
-            <option value="multi">Multi-select</option>
-          </select>
+          <span class="select-shell">
+            <select id="question-type">
+              <option value="single">Single-select</option>
+              <option value="multi">Multi-select</option>
+            </select>
+          </span>
         </label>
 
         <label>
@@ -99,6 +114,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-  <script src="assets/app.js?v=10"></script>
+  <script src="assets/app.js?v=11"></script>
 </body>
 </html>
