@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -159,16 +163,16 @@ textarea {
 }
 
 .select-shell::after {
-  color: var(--muted);
-  content: "⌄";
-  font-size: 22px;
-  font-weight: 900;
-  line-height: 1;
+  border-bottom: 2px solid var(--muted);
+  border-right: 2px solid var(--muted);
+  content: "";
+  height: 8px;
   pointer-events: none;
   position: absolute;
   right: 15px;
   top: 50%;
-  transform: translateY(-54%);
+  transform: translateY(-68%) rotate(45deg);
+  width: 8px;
 }
 
 .select-shell select {
@@ -248,6 +252,109 @@ textarea:focus {
 
 .session-admin-grid label {
   margin-top: 0;
+}
+
+.session-mode-block {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.field-label {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.session-mode-buttons {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.session-mode-button {
+  min-height: 48px;
+  text-align: center;
+  width: 100%;
+}
+
+.session-mode-button.is-active {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+}
+
+.session-mode-button[data-session-mode="delete"].is-active {
+  background: var(--danger);
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.18);
+}
+
+.session-list-panel {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+
+.session-list-panel h2 {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.session-list-panel p {
+  margin: 0 0 14px;
+}
+
+.session-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.session-card-button {
+  align-items: flex-start;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.session-card-button:hover {
+  border-color: #b8c2d3;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
+}
+
+.session-card-button:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+  outline: none;
+}
+
+.session-card-button.is-selected {
+  background: #eef2ff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.session-card-button strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.session-card-button span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.session-empty-card {
+  background: #f8fafc;
 }
 
 .card-grid {
@@ -554,8 +661,13 @@ textarea:focus {
   .hero,
   .card-grid,
   .session-admin-grid,
+  .session-mode-buttons,
   .slide-layout {
     grid-template-columns: 1fr;
+  }
+
+  .session-card-button {
+    padding: 15px;
   }
 
   .panel {
